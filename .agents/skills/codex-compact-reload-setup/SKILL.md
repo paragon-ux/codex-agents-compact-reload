@@ -21,7 +21,8 @@ Install the hook without replacing unrelated Codex hooks or changing the target 
 
 6. If the user asked to perform installation, inspect the preview and rerun without `--dry-run`. If they asked only for instructions or a review, stop after the preview.
 7. Verify the installed hook and registration exist, confirm `projects.json` retains the supplied Codex version and minimum compatibility floor, and hash `reload-agents.mjs`, `projects.json`, and `hooks.json`. On Windows, also hash and inspect `reload-agents.cmd`; require the installed `commandWindows` to be one quote-free, space-free short-path token resolving to that wrapper; verify the wrapper targets the selected Node executable and installed hook; and exercise the exact registered command through `cmd.exe` with one simulated compact `SessionStart` payload. On other platforms, invoke the installed command directly. Do not expose the injected `AGENTS.md` plaintext unless the user requests it.
-8. Tell the user to review and trust the hook in Codex Settings > Hooks or with `/hooks`.
+8. Tell the user to review and trust the hook in Codex Settings > Hooks or with `/hooks`. For promotional host acceptance, retain that normal trust decision and do not use a hook-trust bypass.
+9. Before any real-host campaign, follow `docs/HOST-ACCEPTANCE.md`: provision ordered event evidence first, calibrate only in a separate disposable repository, and freeze a fresh acceptance identity after calibration.
 
 ## Boundaries
 

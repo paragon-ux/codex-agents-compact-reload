@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Strengthened host acceptance with pre-provisioned ordered evidence, isolated calibration, explicit compaction-threshold scope, separate forced-regression and deployment-smoke layers, normal hook trust, and fixed invalid/inconclusive verdicts.
+
 ## 0.1.3 - 2026-08-30
 
 - Made Windows hook commands quote-free through a validated short-path batch wrapper, avoiding openai/codex#38168.
