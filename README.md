@@ -159,7 +159,7 @@ The current automated suite covers:
 - partial deregistration; and
 - complete, recoverable uninstall without unrelated-hook loss.
 
-Run the exact suite with `npm run verify`. The initial release was exercised on Windows with Node.js 22 and Git for Windows. On Windows, the suite also invokes the installed quote-free handler through `cmd.exe`. A real Codex auto/manual compaction acceptance test remains a host-level verification step; follow the [host acceptance protocol](docs/HOST-ACCEPTANCE.md) before making the hook a hard dependency of a high-assurance workflow.
+Run the exact suite with `npm run verify`. The initial release was exercised on Windows with Node.js 22 and Git for Windows. On Windows, the suite also invokes the installed quote-free handler through `cmd.exe`. A real Codex auto/manual compaction acceptance test remains a host-level verification step. The [host acceptance protocol](docs/HOST-ACCEPTANCE.md) requires pre-provisioned ordered evidence, calibration in a separate repository, a forced multi-compaction regression, and a smoke on the actual deployment configuration before the hook becomes a hard dependency of a high-assurance workflow.
 
 CI runs the same verification suite on Windows and Linux with Node.js 20, 22, and 24.
 
