@@ -91,4 +91,3 @@ test("dry-run reports paths without writing CODEX_HOME", () => {
   assert.equal(fs.existsSync(codexHome), false);
   assert.equal(JSON.parse(result.stdout).codex_home, path.resolve(codexHome));
 });
-

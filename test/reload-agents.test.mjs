@@ -96,4 +96,3 @@ test("fails closed when AGENTS.md is missing, empty, oversized, or invalid UTF-8
   fs.writeFileSync(agentsPath, Buffer.from([0xc3, 0x28]));
   assert.throws(() => buildHookOutput(compactPayload(root), { projectsPath: configPath }), /valid UTF-8/);
 });
-

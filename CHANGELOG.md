@@ -6,4 +6,3 @@
 - Added strict UTF-8, size, containment, and Git-root validation.
 - Added idempotent Codex-home installer and dry-run support.
 - Added dependency-free automated verification and public boundary documentation.
-

@@ -213,4 +213,3 @@ async function main() {
 if (process.argv[1] && pathKey(path.resolve(process.argv[1])) === pathKey(SCRIPT_PATH)) {
   await main();
 }
-

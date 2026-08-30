@@ -23,4 +23,3 @@ Review the installed script and generated hook entry before trusting it in Codex
 ## Reporting
 
 Before reporting a security issue publicly, give the repository owner an opportunity to provide a private reporting channel. No dedicated security contact has been declared in this initial local release.
-

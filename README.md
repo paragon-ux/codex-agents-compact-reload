@@ -127,4 +127,3 @@ The project was independently implemented from the required behavior and the ins
 ## License
 
 No project license has been selected yet. Public visibility alone does not grant permission to copy, modify, or redistribute the code. The repository owner should select and add a license before inviting reuse.
-

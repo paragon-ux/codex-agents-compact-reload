@@ -62,4 +62,3 @@ SessionStart additionalContext
 - Reloading the complete hierarchical Codex instruction chain.
 - Providing authenticated or immutable phase state.
 - Blocking all tool use until a separate evidence package is revalidated.
-

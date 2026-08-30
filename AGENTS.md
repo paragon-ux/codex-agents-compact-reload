@@ -5,4 +5,3 @@
 - Keep runtime output to one valid JSON object on standard output.
 - Treat `AGENTS.md` as project instructions, not proof of completed work.
 - Run `npm run verify` before claiming a change is complete.
-
