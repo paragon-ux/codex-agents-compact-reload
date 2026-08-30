@@ -18,6 +18,14 @@ For an explicitly registered Git repository, inject the exact root `AGENTS.md` t
 
 The installer is repeatable. It removes an earlier handler that points to the same installed runtime before adding the current handler.
 
+The setup companion skill wraps this installer with checkout verification, a dry run, installed-file hashes, and an explicit reminder that simulated hook input is not real-host compaction evidence.
+
+### Uninstaller
+
+`scripts/uninstall.mjs` removes named registrations or the complete package installation. It always supports a non-mutating dry run, preserves unrelated hook groups, backs up `hooks.json` before complete handler removal, and deletes only the exact package install directory. Removing the last registration is equivalent to complete uninstall.
+
+The cleanup companion skill requires an exact named-project or `--all` scope and delegates deletion to this script rather than constructing shell deletion commands.
+
 ### Runtime hook
 
 `src/reload-agents.mjs` is dependency-free and communicates exclusively through JSON on standard input and standard output.
@@ -49,6 +57,7 @@ SessionStart additionalContext
 ## Security properties
 
 - Project activation is allowlisted by canonical root.
+- Unrelated stale absolute registrations are ignored; strict existence and Git-root validation applies after the current project is selected.
 - Git independently confirms the root for the current working directory.
 - The instruction file must resolve beneath the registered root.
 - Empty, invalid UTF-8, and files larger than 32 KiB fail closed.
@@ -62,3 +71,4 @@ SessionStart additionalContext
 - Reloading the complete hierarchical Codex instruction chain.
 - Providing authenticated or immutable phase state.
 - Blocking all tool use until a separate evidence package is revalidated.
+- Proving a real Codex manual or automatic compaction round trip; that remains a host acceptance campaign.

@@ -64,6 +64,31 @@ test("does nothing outside registered projects", () => {
   assert.deepEqual(buildHookOutput(compactPayload(outside), { projectsPath: configPath }), {});
 });
 
+test("ignores stale unrelated registrations without weakening selected-project validation", () => {
+  const registered = makeGitProject("agents-live-registration");
+  const outside = makeGitProject("agents-stale-outside");
+  const staleRoot = path.join(os.tmpdir(), `agents-deleted-${process.pid}-${Date.now()}`);
+  const configPath = writeProjects([
+    { name: "deleted", root: staleRoot },
+    { name: "live", root: registered },
+  ]);
+
+  const selectedOutput = buildHookOutput(compactPayload(registered), { projectsPath: configPath });
+  assert.match(selectedOutput.hookSpecificOutput.additionalContext, /Project: live/);
+  assert.deepEqual(buildHookOutput(compactPayload(outside), { projectsPath: configPath }), {});
+});
+
+test("fails closed when the matching registration is invalid", () => {
+  const removedRoot = makeGitProject("agents-removed-registration");
+  const configPath = writeProjects([{ name: "removed", root: removedRoot }]);
+  fs.rmSync(removedRoot, { recursive: true, force: true });
+
+  assert.throws(
+    () => buildHookOutput(compactPayload(removedRoot), { projectsPath: configPath }),
+    /hook cwd does not resolve to an existing directory/,
+  );
+});
+
 test("does nothing for events other than compact SessionStart", () => {
   const root = makeGitProject("agents-event");
   const configPath = writeProjects([{ name: "event", root }]);

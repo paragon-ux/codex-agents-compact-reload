@@ -20,6 +20,8 @@ Registered-project validation failures return `continue=false` with a short reas
 
 Review the installed script and generated hook entry before trusting it in Codex. A trusted hook executes with the host account's permissions. Do not bypass hook trust merely to avoid reviewing a changed command.
 
+A trusted command path is not, by itself, an integrity attestation for the bytes currently stored at that path. High-assurance workflows should independently bind and recheck the installed hook SHA-256, `projects.json`, Node executable and version, Codex version, and expected `AGENTS.md` SHA-256.
+
 ## Reporting
 
 Before reporting a security issue publicly, give the repository owner an opportunity to provide a private reporting channel. No dedicated security contact has been declared in this initial local release.

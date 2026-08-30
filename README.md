@@ -43,6 +43,22 @@ node scripts/install.mjs --project my-project=<PROJECT_ROOT>
 
 The installer copies the hook beneath the active Codex home, registers one compact-triggered `SessionStart` command in `hooks.json`, and records the canonical project root. Existing unrelated hooks are preserved. After installation, trust the new hook in Codex Settings > Hooks or with `/hooks`.
 
+## Companion skills
+
+The [`skills/`](skills/) directory contains two small agent-facing workflows:
+
+- `$codex-compact-reload-setup` verifies the checkout, previews installation, installs only when authorized, hashes the installed files, and distinguishes payload simulation from real-host acceptance.
+- `$codex-compact-reload-cleanup` previews and removes named registrations or the complete installation while preserving unrelated hooks.
+
+The cleanup skill uses the scoped uninstaller rather than asking an agent to improvise recursive deletion:
+
+```sh
+node scripts/uninstall.mjs --project my-project --dry-run
+node scripts/uninstall.mjs --project my-project
+```
+
+Use `--all` instead of `--project` only when the complete installation should be removed.
+
 ## Why use it?
 
 | Approach | Context and cache cost | Recovery control |
@@ -122,14 +138,17 @@ The current automated suite covers:
 - exact content and SHA-256 injection;
 - nested working directories;
 - unregistered-project no-op behavior;
+- stale unrelated registration isolation and invalid selected-registration failure;
 - event filtering;
 - missing, empty, oversized, and invalid UTF-8 failures;
 - installer preservation of unrelated hooks;
 - repeat-install idempotence;
 - installed-hook execution; and
-- dry-run non-mutation.
+- installer dry-run non-mutation;
+- partial deregistration; and
+- complete, recoverable uninstall without unrelated-hook loss.
 
-Run the exact suite with `npm run verify`. The initial release was exercised on Windows with Node.js 22 and Git for Windows. A real Codex auto/manual compaction acceptance test remains a host-level verification step; the repository suite simulates the documented hook payload and validates the exact command output.
+Run the exact suite with `npm run verify`. The initial release was exercised on Windows with Node.js 22 and Git for Windows. A real Codex auto/manual compaction acceptance test remains a host-level verification step; the repository suite simulates the documented hook payload and validates the exact command output. Follow the [host acceptance protocol](docs/HOST-ACCEPTANCE.md) before making the hook a hard dependency of a high-assurance workflow.
 
 CI runs the same verification suite on Windows and Linux with Node.js 20, 22, and 24.
 
@@ -149,7 +168,7 @@ See [Architecture](docs/ARCHITECTURE.md), [Rationale](Rationale.MD), [Security](
 
 ## Design provenance
 
-The project was independently implemented from the required behavior and the inspected Codex hook contract. The project concept was informed by [codex-compact-continuity](https://github.com/Sakiyary/codex-compact-continuity), which addresses a broader continuity problem. No source code from that project is included here.
+The project was independently implemented from the required behavior and the inspected Codex hook contract. The project concept was informed by [codex-compact-continuity](https://github.com/Sakiyary/codex-compact-continuity), which addresses a broader continuity problem. Its AI-assisted installation and manual cleanup documentation also informed the decision to provide two narrow companion skills. No source code from that project is included here.
 
 ## License
 

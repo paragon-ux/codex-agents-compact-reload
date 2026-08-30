@@ -63,6 +63,16 @@ function pathKey(value) {
   return process.platform === "win32" ? normalized.toLowerCase() : normalized;
 }
 
+function configuredRoot(value, label) {
+  if (typeof value !== "string" || value.length === 0) {
+    throw new Error(`${label} must be a nonempty path`);
+  }
+  if (!path.isAbsolute(value)) {
+    throw new Error(`${label} must be absolute`);
+  }
+  return path.normalize(value);
+}
+
 function isInside(root, candidate) {
   const relative = path.relative(root, candidate);
   return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
@@ -95,7 +105,7 @@ function configuredProjects(configPath) {
     }
     return {
       name: entry.name.trim(),
-      root: canonicalExistingDirectory(entry.root, `projects[${index}].root`),
+      root: configuredRoot(entry.root, `projects[${index}].root`),
     };
   });
 }
@@ -159,12 +169,14 @@ export function buildHookOutput(payload, options = {}) {
     return {};
   }
 
+  const projectRoot = canonicalExistingDirectory(project.root, `registered project ${project.name}`);
+
   const observedGitRoot = gitRoot(cwd);
-  if (pathKey(observedGitRoot) !== pathKey(project.root)) {
+  if (pathKey(observedGitRoot) !== pathKey(projectRoot)) {
     throw new Error("configured project root does not equal the observed Git root");
   }
 
-  const agents = readAgents(project.root, options.maxBytes || DEFAULT_MAX_BYTES);
+  const agents = readAgents(projectRoot, options.maxBytes || DEFAULT_MAX_BYTES);
   const context = [
     "Post-compaction project instructions were reloaded from the registered Git root.",
     `Project: ${project.name}`,

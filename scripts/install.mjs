@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const REPOSITORY_ROOT = path.resolve(path.dirname(SCRIPT_PATH), "..");
 const SOURCE_HOOK = path.join(REPOSITORY_ROOT, "src", "reload-agents.mjs");
-const INSTALL_DIRECTORY_NAME = "agents-compact-reload";
+export const INSTALL_DIRECTORY_NAME = "agents-compact-reload";
 
 function usage() {
   return `Usage:
@@ -94,7 +94,7 @@ function validateProject(project) {
   return { name: project.name, root };
 }
 
-function readJson(filePath, fallback) {
+export function readJson(filePath, fallback) {
   if (!fs.existsSync(filePath)) {
     return fallback;
   }
@@ -105,7 +105,7 @@ function readJson(filePath, fallback) {
   }
 }
 
-function writeJsonAtomic(filePath, value) {
+export function writeJsonAtomic(filePath, value) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   const temporaryPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
   fs.writeFileSync(temporaryPath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
@@ -119,7 +119,7 @@ function quoteCommandArgument(value) {
   return `"${value}"`;
 }
 
-function projectsArray(config) {
+export function projectsArray(config) {
   return Array.isArray(config) ? config : Array.isArray(config?.projects) ? config.projects : [];
 }
 
@@ -136,7 +136,7 @@ function mergeProjects(existingConfig, incomingProjects) {
   return { projects: [...merged.values()].sort((left, right) => left.name.localeCompare(right.name)) };
 }
 
-function isThisHook(handler, installedHookPath) {
+export function isThisHook(handler, installedHookPath) {
   if (!handler || handler.type !== "command") {
     return false;
   }
@@ -144,20 +144,32 @@ function isThisHook(handler, installedHookPath) {
   return commands.some((command) => command.includes(installedHookPath));
 }
 
-function mergeHooks(existingConfig, command, installedHookPath) {
+export function removeHookHandlers(existingConfig, installedHookPath) {
   const config = existingConfig && typeof existingConfig === "object" ? structuredClone(existingConfig) : {};
   config.hooks = config.hooks && typeof config.hooks === "object" ? config.hooks : {};
   const groups = Array.isArray(config.hooks.SessionStart) ? config.hooks.SessionStart : [];
   const cleanedGroups = [];
+  let removedHandlers = 0;
   for (const group of groups) {
-    const handlers = Array.isArray(group?.hooks)
-      ? group.hooks.filter((handler) => !isThisHook(handler, installedHookPath))
-      : [];
+    const originalHandlers = Array.isArray(group?.hooks) ? group.hooks : [];
+    const handlers = originalHandlers.filter((handler) => !isThisHook(handler, installedHookPath));
+    removedHandlers += originalHandlers.length - handlers.length;
     if (handlers.length > 0) {
       cleanedGroups.push({ ...group, hooks: handlers });
     }
   }
-  cleanedGroups.push({
+  if (cleanedGroups.length > 0) {
+    config.hooks.SessionStart = cleanedGroups;
+  } else {
+    delete config.hooks.SessionStart;
+  }
+  return { config, removedHandlers };
+}
+
+function mergeHooks(existingConfig, command, installedHookPath) {
+  const { config } = removeHookHandlers(existingConfig, installedHookPath);
+  config.hooks.SessionStart ||= [];
+  config.hooks.SessionStart.push({
     matcher: "compact",
     hooks: [{
       type: "command",
@@ -168,7 +180,6 @@ function mergeHooks(existingConfig, command, installedHookPath) {
       additionalContextLimit: 0,
     }],
   });
-  config.hooks.SessionStart = cleanedGroups;
   return config;
 }
 

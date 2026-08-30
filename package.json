@@ -1,11 +1,11 @@
 {
   "name": "codex-agents-compact-reload",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Reload a registered project's AGENTS.md into Codex immediately after context compaction.",
   "type": "module",
   "private": true,
   "scripts": {
-    "check": "node --check src/reload-agents.mjs && node --check scripts/install.mjs && node --check test/reload-agents.test.mjs && node --check test/install.test.mjs",
+    "check": "node --check src/reload-agents.mjs && node --check scripts/install.mjs && node --check scripts/uninstall.mjs && node --check test/reload-agents.test.mjs && node --check test/install.test.mjs && node --check test/uninstall.test.mjs",
     "test": "node --test",
     "verify": "npm run check && npm test"
   },
