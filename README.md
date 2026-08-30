@@ -143,7 +143,7 @@ The current automated suite covers:
 - missing, empty, oversized, and invalid UTF-8 failures;
 - installer preservation of unrelated hooks;
 - repeat-install idempotence;
-- installed-hook execution; and
+- installed-hook execution;
 - installer dry-run non-mutation;
 - partial deregistration; and
 - complete, recoverable uninstall without unrelated-hook loss.
@@ -154,7 +154,7 @@ CI runs the same verification suite on Windows and Linux with Node.js 20, 22, an
 
 ## Compatibility
 
-Release `v0.1.0` is tested with `codex-cli 0.147.0`. That is a compatibility snapshot, not a minimum-version claim: lifecycle-hook availability and payload behavior must still be confirmed for the Codex build where the hook is installed.
+Release `v0.1.1` is tested with `codex-cli 0.147.0`. That is a compatibility snapshot, not a minimum-version claim: lifecycle-hook availability and payload behavior must still be confirmed for the Codex build where the hook is installed.
 
 ## Limitations
 
@@ -172,4 +172,4 @@ The project was independently implemented from the required behavior and the ins
 
 ## License
 
-No project license has been selected yet. Public visibility alone does not grant permission to copy, modify, or redistribute the code. The repository owner should select and add a license before inviting reuse.
+[MIT](LICENSE). Copyright (c) 2026 the codex-agents-compact-reload contributors.

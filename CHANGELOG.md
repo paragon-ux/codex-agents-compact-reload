@@ -1,11 +1,12 @@
 # Changelog
 
-## Unreleased
+## 0.1.1 - 2026-08-30
 
 - Isolated stale unrelated project registrations so they cannot stop valid or unregistered compact continuations.
 - Added a scoped, dry-run-first uninstaller that preserves unrelated hooks and backs up `hooks.json` before complete removal.
 - Added setup and cleanup companion skills.
 - Added a real-host manual/automatic compaction acceptance protocol and strengthened hook-byte trust guidance.
+- Licensed the project under the MIT License.
 
 ## 0.1.0 - 2026-08-30
 

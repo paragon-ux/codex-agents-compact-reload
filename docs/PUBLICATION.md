@@ -16,6 +16,7 @@
 | Original icon, CI, and release note | Include | They make the release recognizable and independently inspectable. |
 | Setup/cleanup skills and scoped uninstaller | Include | They make host mutations previewable and avoid ad hoc deletion instructions. |
 | Host acceptance protocol | Include | It exposes the remaining difference between payload simulation and real Codex compaction evidence. |
+| MIT License | Include | It permits public use, modification, and redistribution under a standard permissive license. |
 | Local paths and host configuration | Exclude | They are machine-specific and sensitive. |
 | Conversation transcripts and private task inputs | Exclude | They are unnecessary and not authorized for publication. |
 | Third-party source code | Exclude | The implementation is clean and dependency-free. |
@@ -32,8 +33,8 @@ The repository's automated tests exercise generated hook payloads and a temporar
 
 ## Release audit
 
-On 2026-08-30, the current development tree passed `npm run verify` with 10 of 10 tests, and both companion skills passed the skill metadata validator. The public sanitizer scanned all 23 files with 1 BLOCK finding, 0 WARN findings, 0 suppressed files or lines, and 0 scan errors. The sole finding is the intentionally public repository-owner handle required by the live GitHub Actions badge URL; it was manually reviewed and is authorized publication metadata, not private identity leakage.
+On 2026-08-30, the `v0.1.1` candidate passed `npm run verify` with 10 of 10 tests, and both companion skills passed the skill metadata validator. The public sanitizer scanned all 25 files with 1 BLOCK finding, 0 WARN findings, 0 suppressed files or lines, and 0 scan errors. The sole finding is the intentionally public repository-owner handle required by the live GitHub Actions badge URL; it was manually reviewed and is authorized publication metadata, not private identity leakage.
 
 ## Release decision
 
-`READY WITH DISCLOSED LIMITS` for public inspection after a clean sanitizer result. Reuse and redistribution remain on hold until the owner selects a project license.
+`READY WITH DISCLOSED LIMITS` for public release under the MIT License. The automated and simulated hook evidence is current; real manual and automatic Codex compaction acceptance remains unclaimed until the host protocol passes.
