@@ -1,4 +1,14 @@
-# Codex AGENTS.md Compact Reload
+<p align="center">
+  <img src="assets/compact-reload-icon.png" width="180" alt="A document wrapped by a continuous reload ribbon">
+</p>
+
+<h1 align="center">Codex AGENTS.md Compact Reload</h1>
+
+<p align="center"><strong>Compaction happens. Your project rules come back.</strong></p>
+
+<p align="center">
+  <a href="../../actions/workflows/ci.yml"><img src="https://github.com/paragon-ux/codex-agents-compact-reload/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
+</p>
 
 Keep project instructions present at the moment they matter most: immediately after Codex compacts a long-running conversation.
 
@@ -121,6 +131,12 @@ The current automated suite covers:
 
 Run the exact suite with `npm run verify`. The initial release was exercised on Windows with Node.js 22 and Git for Windows. A real Codex auto/manual compaction acceptance test remains a host-level verification step; the repository suite simulates the documented hook payload and validates the exact command output.
 
+CI runs the same verification suite on Windows and Linux with Node.js 20, 22, and 24.
+
+## Compatibility
+
+Release `v0.1.0` is tested with `codex-cli 0.147.0`. That is a compatibility snapshot, not a minimum-version claim: lifecycle-hook availability and payload behavior must still be confirmed for the Codex build where the hook is installed.
+
 ## Limitations
 
 - This is continuity assistance, not an authenticated phase-authority system.
@@ -129,7 +145,7 @@ Run the exact suite with `npm run verify`. The initial release was exercised on 
 - Hook availability and event behavior depend on the installed Codex version.
 - Only the root `AGENTS.md` is reloaded; nested instruction-chain files are outside this tool's promise.
 
-See [Architecture](docs/ARCHITECTURE.md) and [Publication record](docs/PUBLICATION.md) for design and provenance details.
+See [Architecture](docs/ARCHITECTURE.md), [Rationale](Rationale.MD), [Security](docs/SECURITY.md), and the [Publication record](docs/PUBLICATION.md) for design, tradeoffs, and provenance details.
 
 ## Design provenance
 
