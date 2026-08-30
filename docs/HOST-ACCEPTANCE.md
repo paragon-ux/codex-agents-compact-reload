@@ -9,13 +9,13 @@ Run this only in a disposable Git repository and a disposable Codex home. Do not
 Before the session starts, retain:
 
 - utility repository commit and tree;
-- Codex version;
+- Codex version, which must be a stable release at or above `0.145.0`;
 - Node executable path, version, and SHA-256;
 - installed `reload-agents.mjs` path and SHA-256;
 - installed `projects.json` path and SHA-256; and
 - disposable project root and initial `AGENTS.md` SHA-256.
 
-Install through the `$codex-compact-reload-setup` companion skill and review/trust the generated hook definition.
+Install through the `$codex-compact-reload-setup` companion skill and review/trust the generated hook definition. Confirm the installed `projects.json` records the same `installed_for_codex_version`, `minimum_codex_version`, and compact-delivery fix commit as the frozen test identity.
 
 ## Manual compaction
 
@@ -34,6 +34,14 @@ Repeat the marker transition in a fresh task, but allow Codex to compact automat
 
 Do not manually invoke `/compact`, restart the task, or remind the model to reread the file. Apply the same marker/hash acceptance rule.
 
+## Delayed-delivery regression
+
+This campaign guards against the behavior reported in [openai/codex#28736](https://github.com/openai/codex/issues/28736), fixed upstream by [`8c41ed33`](https://github.com/openai/codex/commit/8c41ed33ce3e39460e7b13b14c35e0c39bb5980d) and first released in stable Codex CLI 0.145.0.
+
+In a fresh task, use a bounded non-sensitive workload that produces at least two automatic compactions inside one logical user turn. Retain ordered host hook and model-continuation evidence. For every observed compaction boundary, require exactly one matching `SessionStart(source=compact)` hook to finish before the next model sampling or tool phase begins. After that turn completes, send one neutral follow-up that does not itself compact and require zero compact-hook invocations and zero replayed reload context on that follow-up.
+
+If the host cannot expose enough ordered evidence to establish those facts, the timing check is inconclusive. Do not infer immediate delivery merely because the final answer contains the expected marker. The runtime deliberately keeps no cross-event state and cannot distinguish a genuine new compact from a delayed replay on an affected host.
+
 ## Failure behavior
 
 In a separate fresh task, delete, empty, oversize, or corrupt the registered root `AGENTS.md` after startup and before compaction. The compact continuation must stop with a non-success reason and must not receive plausible reloaded instructions.
@@ -46,6 +54,7 @@ Also register two disposable projects, delete one registration root, and compact
 
 - manual marker/hash transition passes;
 - automatic marker/hash transition passes in every deployment mode being claimed;
+- the delayed-delivery regression proves one immediate reload per real compact and no later replay;
 - invalid selected-project input stops continuation;
 - stale unrelated registration does not affect another project or an unregistered project; and
 - retained paths, hashes, versions, event source, timestamps, and observations are internally consistent.

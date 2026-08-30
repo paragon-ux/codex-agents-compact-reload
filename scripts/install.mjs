@@ -10,6 +10,8 @@ const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const REPOSITORY_ROOT = path.resolve(path.dirname(SCRIPT_PATH), "..");
 const SOURCE_HOOK = path.join(REPOSITORY_ROOT, "src", "reload-agents.mjs");
 export const INSTALL_DIRECTORY_NAME = "agents-compact-reload";
+export const MINIMUM_CODEX_VERSION = "0.145.0";
+export const COMPACT_DELIVERY_FIX_COMMIT = "8c41ed33ce3e39460e7b13b14c35e0c39bb5980d";
 
 function usage() {
   return `Usage:
@@ -18,6 +20,7 @@ function usage() {
 Options:
   --project Name=<path>  Register or update a project. Repeatable.
   --codex-home <path>    Override CODEX_HOME for this installation.
+  --codex-version <ver>  Exact active Codex version (minimum ${MINIMUM_CODEX_VERSION}).
   --node <path>          Node executable used by the hook.
   --dry-run              Print the proposed installation without writing.
   --help                 Show this help.
@@ -40,6 +43,7 @@ function parseArgs(argv) {
   const options = {
     projects: [],
     codexHome: null,
+    codexVersion: null,
     nodePath: process.execPath,
     dryRun: false,
     help: false,
@@ -50,6 +54,8 @@ function parseArgs(argv) {
       options.projects.push(parseAssignment(argv[++index]));
     } else if (argument === "--codex-home") {
       options.codexHome = argv[++index];
+    } else if (argument === "--codex-version") {
+      options.codexVersion = argv[++index];
     } else if (argument === "--node") {
       options.nodePath = argv[++index];
     } else if (argument === "--dry-run") {
@@ -77,6 +83,43 @@ function canonicalDirectory(value, label) {
     throw new Error(`${label} is not a directory`);
   }
   return resolved;
+}
+
+function versionTuple(value, label) {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    throw new Error(`${label} is required`);
+  }
+  const match = value.trim().match(/^(?:codex(?:-cli)?\s+)?v?(\d+)\.(\d+)\.(\d+)([-+][0-9A-Za-z.-]+)?$/i);
+  if (!match) {
+    throw new Error(`${label} must be a stable semantic version such as 0.147.0`);
+  }
+  if (match[4]?.startsWith("-")) {
+    throw new Error(`${label} must be a stable release, not a prerelease`);
+  }
+  return {
+    normalized: `${Number(match[1])}.${Number(match[2])}.${Number(match[3])}`,
+    tuple: match.slice(1, 4).map(Number),
+  };
+}
+
+function compareVersions(left, right) {
+  for (let index = 0; index < 3; index += 1) {
+    if (left[index] !== right[index]) {
+      return left[index] - right[index];
+    }
+  }
+  return 0;
+}
+
+export function supportedCodexVersion(value) {
+  const observed = versionTuple(value, "--codex-version");
+  const minimum = versionTuple(MINIMUM_CODEX_VERSION, "minimum Codex version");
+  if (compareVersions(observed.tuple, minimum.tuple) < 0) {
+    throw new Error(
+      `Codex ${observed.normalized} is unsupported; ${MINIMUM_CODEX_VERSION} or newer is required because earlier builds may defer compact SessionStart hooks (openai/codex#28736)`,
+    );
+  }
+  return observed.normalized;
 }
 
 function validateProject(project) {
@@ -123,7 +166,7 @@ export function projectsArray(config) {
   return Array.isArray(config) ? config : Array.isArray(config?.projects) ? config.projects : [];
 }
 
-function mergeProjects(existingConfig, incomingProjects) {
+function mergeProjects(existingConfig, incomingProjects, codexVersion) {
   const merged = new Map();
   for (const project of projectsArray(existingConfig)) {
     if (project && typeof project.name === "string" && typeof project.root === "string") {
@@ -133,7 +176,17 @@ function mergeProjects(existingConfig, incomingProjects) {
   for (const project of incomingProjects) {
     merged.set(project.name, project);
   }
-  return { projects: [...merged.values()].sort((left, right) => left.name.localeCompare(right.name)) };
+  const base = !Array.isArray(existingConfig) && existingConfig && typeof existingConfig === "object"
+    ? structuredClone(existingConfig)
+    : {};
+  return {
+    ...base,
+    format_version: 1,
+    installed_for_codex_version: codexVersion,
+    minimum_codex_version: MINIMUM_CODEX_VERSION,
+    compact_delivery_fix_commit: COMPACT_DELIVERY_FIX_COMMIT,
+    projects: [...merged.values()].sort((left, right) => left.name.localeCompare(right.name)),
+  };
 }
 
 export function isThisHook(handler, installedHookPath) {
@@ -188,6 +241,7 @@ export function installationPlan(options) {
     throw new Error("at least one --project is required");
   }
   const projects = options.projects.map(validateProject);
+  const codexVersion = supportedCodexVersion(options.codexVersion);
   const codexHome = path.resolve(options.codexHome || process.env.CODEX_HOME || path.join(os.homedir(), ".codex"));
   const nodePath = fs.realpathSync.native(path.resolve(options.nodePath));
   const installDirectory = path.join(codexHome, "hooks", INSTALL_DIRECTORY_NAME);
@@ -203,8 +257,9 @@ export function installationPlan(options) {
     projectsPath,
     hooksPath,
     command,
+    codexVersion,
     projects,
-    projectsConfig: mergeProjects(readJson(projectsPath, { projects: [] }), projects),
+    projectsConfig: mergeProjects(readJson(projectsPath, { projects: [] }), projects, codexVersion),
     hooksConfig: mergeHooks(readJson(hooksPath, { hooks: {} }), command, installedHookPath),
   };
 }
@@ -217,6 +272,8 @@ function install(options) {
       hook_path: plan.installedHookPath,
       projects_path: plan.projectsPath,
       hooks_path: plan.hooksPath,
+      codex_version: plan.codexVersion,
+      minimum_codex_version: MINIMUM_CODEX_VERSION,
       projects: plan.projects,
       command: plan.command,
     }, null, 2)}\n`);
@@ -232,6 +289,7 @@ function install(options) {
   process.stdout.write(`Hook: ${plan.installedHookPath}\n`);
   process.stdout.write(`Projects: ${plan.projectsPath}\n`);
   process.stdout.write(`Codex hooks: ${plan.hooksPath}\n`);
+  process.stdout.write(`Codex compatibility: ${plan.codexVersion} (minimum ${MINIMUM_CODEX_VERSION})\n`);
   process.stdout.write("Trust the new hook in Codex Settings > Hooks or with /hooks before use.\n");
 }
 

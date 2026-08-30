@@ -1,6 +1,6 @@
 {
   "name": "codex-agents-compact-reload",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Reload a registered project's AGENTS.md into Codex immediately after context compaction.",
   "license": "MIT",
   "type": "module",

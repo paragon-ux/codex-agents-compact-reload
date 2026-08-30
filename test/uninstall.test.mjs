@@ -40,6 +40,7 @@ test("removes registrations or the complete installation without touching unrela
     const install = runScript(INSTALLER_PATH, [
       "--project", `${name}=${root}`,
       "--codex-home", codexHome,
+      "--codex-version", "0.147.0",
     ]);
     assert.equal(install.status, 0, install.stderr);
   }

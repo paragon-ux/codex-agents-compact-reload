@@ -22,6 +22,8 @@ Review the installed script and generated hook entry before trusting it in Codex
 
 A trusted command path is not, by itself, an integrity attestation for the bytes currently stored at that path. High-assurance workflows should independently bind and recheck the installed hook SHA-256, `projects.json`, Node executable and version, Codex version, and expected `AGENTS.md` SHA-256.
 
+The installer rejects stable Codex releases older than 0.145.0 because those builds can defer compact `SessionStart` context until a later turn. The asserted version stored in `projects.json` is operator-supplied compatibility metadata, not a cryptographic measurement of the running host. Bind it to independently observed host evidence and run the delayed-delivery regression before relying on the hook for high-assurance continuity.
+
 ## Reporting
 
 Before reporting a security issue publicly, give the repository owner an opportunity to provide a private reporting channel. No dedicated security contact has been declared in this initial local release.

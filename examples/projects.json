@@ -1,4 +1,8 @@
 {
+  "format_version": 1,
+  "installed_for_codex_version": "0.147.0",
+  "minimum_codex_version": "0.145.0",
+  "compact_delivery_fix_commit": "8c41ed33ce3e39460e7b13b14c35e0c39bb5980d",
   "projects": [
     {
       "name": "example-project",

@@ -9,18 +9,18 @@ Install the hook without replacing unrelated Codex hooks or changing the target 
 
 ## Workflow
 
-1. Resolve a trusted `codex-agents-compact-reload` checkout containing `scripts/install.mjs`. When this skill is used from its source repository, the checkout root is two directories above this file. Otherwise use a checkout supplied by the user; do not download or switch versions without authorization.
+1. Resolve a trusted `codex-agents-compact-reload` checkout containing `scripts/install.mjs`. When this skill is used from its source repository, the checkout root is three directories above this file. Otherwise use a checkout supplied by the user; do not download or switch versions without authorization.
 2. Resolve each target with `git -C <path> rev-parse --show-toplevel`. Require the supplied path to equal that Git root and require a nonempty root `AGENTS.md`.
-3. Resolve the intended Codex home. Use an explicit `--codex-home` when the user supplied one; otherwise use the active Codex home.
+3. Resolve the intended Codex home and the exact active Codex version. Require stable Codex CLI `0.145.0` or newer; earlier versions may defer compact `SessionStart` delivery as described in openai/codex issue #28736. Do not infer a version that cannot be observed.
 4. Run `npm run verify` in the utility checkout.
 5. Preview the exact mutation:
 
    ```text
-   node scripts/install.mjs --project <name>=<absolute-git-root> --codex-home <codex-home> --dry-run
+   node scripts/install.mjs --project <name>=<absolute-git-root> --codex-home <codex-home> --codex-version <version> --dry-run
    ```
 
 6. If the user asked to perform installation, inspect the preview and rerun without `--dry-run`. If they asked only for instructions or a review, stop after the preview.
-7. Verify the installed hook and registration exist, hash `reload-agents.mjs` and `projects.json`, and simulate one compact `SessionStart` payload for the registered project. Do not expose the injected `AGENTS.md` plaintext unless the user requests it.
+7. Verify the installed hook and registration exist, confirm `projects.json` retains the supplied Codex version and minimum compatibility floor, hash `reload-agents.mjs` and `projects.json`, and simulate one compact `SessionStart` payload for the registered project. Do not expose the injected `AGENTS.md` plaintext unless the user requests it.
 8. Tell the user to review and trust the hook in Codex Settings > Hooks or with `/hooks`.
 
 ## Boundaries

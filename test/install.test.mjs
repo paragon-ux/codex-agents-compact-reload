@@ -17,13 +17,15 @@ function makeProject() {
   return root;
 }
 
-function runInstaller(codexHome, projectRoot) {
+function runInstaller(codexHome, projectRoot, codexVersion = "0.147.0") {
   return spawnSync(process.execPath, [
     INSTALLER_PATH,
     "--project",
     `demo=${projectRoot}`,
     "--codex-home",
     codexHome,
+    "--codex-version",
+    codexVersion,
   ], {
     encoding: "utf8",
     env: { ...process.env, CODEX_HOME: codexHome },
@@ -53,6 +55,10 @@ test("installs a project-scoped compact SessionStart hook without replacing unre
 
   assert.equal(fs.existsSync(installedHook), true);
   assert.deepEqual(projects.projects, [{ name: "demo", root: fs.realpathSync.native(projectRoot) }]);
+  assert.equal(projects.format_version, 1);
+  assert.equal(projects.installed_for_codex_version, "0.147.0");
+  assert.equal(projects.minimum_codex_version, "0.145.0");
+  assert.equal(projects.compact_delivery_fix_commit, "8c41ed33ce3e39460e7b13b14c35e0c39bb5980d");
   assert.equal(hooks.description, "existing");
   assert.equal(hooks.hooks.Stop.length, 1);
   assert.equal(hooks.hooks.SessionStart.length, 1, "repeat installation must not duplicate the hook");
@@ -84,10 +90,37 @@ test("dry-run reports paths without writing CODEX_HOME", () => {
     `demo=${projectRoot}`,
     "--codex-home",
     codexHome,
+    "--codex-version",
+    "0.145.0",
     "--dry-run",
   ], { encoding: "utf8" });
 
   assert.equal(result.status, 0, result.stderr);
   assert.equal(fs.existsSync(codexHome), false);
-  assert.equal(JSON.parse(result.stdout).codex_home, path.resolve(codexHome));
+  const output = JSON.parse(result.stdout);
+  assert.equal(output.codex_home, path.resolve(codexHome));
+  assert.equal(output.codex_version, "0.145.0");
+  assert.equal(output.minimum_codex_version, "0.145.0");
+});
+
+test("rejects Codex releases affected by deferred compact SessionStart delivery", () => {
+  const projectRoot = makeProject();
+  const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "agents-old-codex-home-"));
+
+  const affected = runInstaller(codexHome, projectRoot, "codex-cli 0.144.2");
+  assert.equal(affected.status, 1);
+  assert.match(affected.stderr, /0\.145\.0 or newer is required/);
+  assert.equal(fs.existsSync(path.join(codexHome, "hooks.json")), false);
+
+  const missing = spawnSync(process.execPath, [
+    INSTALLER_PATH,
+    "--project", `demo=${projectRoot}`,
+    "--codex-home", codexHome,
+  ], { encoding: "utf8" });
+  assert.equal(missing.status, 1);
+  assert.match(missing.stderr, /--codex-version is required/);
+
+  const prerelease = runInstaller(codexHome, projectRoot, "0.145.0-alpha.1");
+  assert.equal(prerelease.status, 1);
+  assert.match(prerelease.stderr, /stable release, not a prerelease/);
 });

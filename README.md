@@ -18,7 +18,7 @@ This small, dependency-free hook reloads the registered Git root's `AGENTS.md`, 
 
 Requirements:
 
-- Codex with lifecycle hooks enabled.
+- Stable Codex CLI 0.145.0 or newer with lifecycle hooks enabled.
 - Node.js 20 or newer.
 - Git on `PATH`.
 - A nonempty UTF-8 `AGENTS.md` at the registered Git root.
@@ -29,23 +29,29 @@ Verify the checkout:
 npm run verify
 ```
 
+Record the active Codex version. The installer requires this exact value:
+
+```sh
+codex --version
+```
+
 Preview installation without writing anything:
 
 ```sh
-node scripts/install.mjs --project my-project=<PROJECT_ROOT> --dry-run
+node scripts/install.mjs --project my-project=<PROJECT_ROOT> --codex-version <CODEX_VERSION> --dry-run
 ```
 
 Install for that project:
 
 ```sh
-node scripts/install.mjs --project my-project=<PROJECT_ROOT>
+node scripts/install.mjs --project my-project=<PROJECT_ROOT> --codex-version <CODEX_VERSION>
 ```
 
-The installer copies the hook beneath the active Codex home, registers one compact-triggered `SessionStart` command in `hooks.json`, and records the canonical project root. Existing unrelated hooks are preserved. After installation, trust the new hook in Codex Settings > Hooks or with `/hooks`.
+The installer copies the hook beneath the active Codex home, registers one compact-triggered `SessionStart` command in `hooks.json`, and records the canonical project root plus the asserted Codex compatibility identity. Existing unrelated hooks are preserved. After installation, trust the new hook in Codex Settings > Hooks or with `/hooks`.
 
 ## Companion skills
 
-The [`skills/`](skills/) directory contains two small agent-facing workflows:
+The [`.agents/skills/`](.agents/skills/) directory contains two repository-scoped workflows in Codex's [documented discovery location](https://learn.chatgpt.com/docs/build-skills#where-codex-loads-local-skills):
 
 - `$codex-compact-reload-setup` verifies the checkout, previews installation, installs only when authorized, hashes the installed files, and distinguishes payload simulation from real-host acceptance.
 - `$codex-compact-reload-cleanup` previews and removes named registrations or the complete installation while preserving unrelated hooks.
@@ -73,6 +79,8 @@ The hook is designed to preserve prompt-cache-friendly stable context, avoid a s
 ## Why `SessionStart`, not `PostCompact`?
 
 Codex's `PostCompact` command output can report status or stop continuation, but it does not provide the `additionalContext` channel needed to put instructions into the next model request. Codex emits `SessionStart` with source `compact` for the immediate continuation, and that event supports `additionalContext`.
+
+Older Codex builds had a delivery defect: automatic mid-turn compactions could queue this event until a later user turn, causing both missing immediate context and delayed duplicate injection ([openai/codex#28736](https://github.com/openai/codex/issues/28736)). OpenAI fixed it in commit [`8c41ed33`](https://github.com/openai/codex/commit/8c41ed33ce3e39460e7b13b14c35e0c39bb5980d), first included in [stable Codex CLI 0.145.0](https://github.com/openai/codex/releases/tag/rust-v0.145.0). Installation therefore rejects earlier releases. The hook cannot safely emulate this upstream timing guarantee because affected payloads contain no compact-boundary identity.
 
 The installed hook therefore uses:
 
@@ -112,6 +120,7 @@ Register several projects in one installation:
 
 ```sh
 node scripts/install.mjs \
+  --codex-version <CODEX_VERSION> \
   --project frontend=<FRONTEND_ROOT> \
   --project backend=<BACKEND_ROOT>
 ```
@@ -154,14 +163,14 @@ CI runs the same verification suite on Windows and Linux with Node.js 20, 22, an
 
 ## Compatibility
 
-Release `v0.1.1` is tested with `codex-cli 0.147.0`. That is a compatibility snapshot, not a minimum-version claim: lifecycle-hook availability and payload behavior must still be confirmed for the Codex build where the hook is installed.
+The minimum supported stable release is Codex CLI 0.145.0, which contains the upstream immediate-delivery fix for compact `SessionStart` hooks. This project is tested with `codex-cli 0.147.0`; that remains the evidence-bound compatibility snapshot. Run the host acceptance protocol on the exact deployment build because version gating does not replace live timing evidence.
 
 ## Limitations
 
 - This is continuity assistance, not an authenticated phase-authority system.
 - The source hash is reported but is not compared to an independently frozen expected hash.
 - The installer modifies the selected Codex home's `hooks.json` and requires explicit hook trust afterward.
-- Hook availability and event behavior depend on the installed Codex version.
+- Hook availability and event behavior still require host acceptance on the installed Codex version, even at or above the enforced minimum.
 - Only the root `AGENTS.md` is reloaded; nested instruction-chain files are outside this tool's promise.
 
 See [Architecture](docs/ARCHITECTURE.md), [Rationale](Rationale.MD), [Security](docs/SECURITY.md), and the [Publication record](docs/PUBLICATION.md) for design, tradeoffs, and provenance details.

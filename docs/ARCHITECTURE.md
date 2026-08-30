@@ -10,15 +10,18 @@ For an explicitly registered Git repository, inject the exact root `AGENTS.md` t
 
 `scripts/install.mjs` performs an explicit host mutation:
 
-1. Canonicalizes each requested project root.
-2. Requires a Git-root marker and nonempty root `AGENTS.md`.
-3. Copies the runtime hook under `<CODEX_HOME>/hooks/agents-compact-reload/`.
-4. Merges project registrations into `projects.json`.
-5. Merges one compact `SessionStart` handler into `<CODEX_HOME>/hooks.json` while preserving unrelated handlers.
+1. Requires and validates the asserted active Codex version against stable `0.145.0` or newer.
+2. Canonicalizes each requested project root.
+3. Requires a Git-root marker and nonempty root `AGENTS.md`.
+4. Copies the runtime hook under `<CODEX_HOME>/hooks/agents-compact-reload/`.
+5. Merges project registrations and the compatibility identity into `projects.json`.
+6. Merges one compact `SessionStart` handler into `<CODEX_HOME>/hooks.json` while preserving unrelated handlers.
 
 The installer is repeatable. It removes an earlier handler that points to the same installed runtime before adding the current handler.
 
 The setup companion skill wraps this installer with checkout verification, a dry run, installed-file hashes, and an explicit reminder that simulated hook input is not real-host compaction evidence.
+
+Stable Codex CLI 0.145.0 is the compatibility floor because it is the first stable release containing OpenAI's immediate compact-continuation delivery fix (`8c41ed33`). Earlier builds can defer and replay compact `SessionStart` hooks. The runtime cannot repair that host ordering defect without a compact-boundary identifier, so unsupported hosts are rejected at installation rather than producing a weakened success claim.
 
 ### Uninstaller
 

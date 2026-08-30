@@ -9,7 +9,7 @@ Remove only the requested compact-reload registration or installation through th
 
 ## Workflow
 
-1. Resolve a trusted `codex-agents-compact-reload` checkout containing `scripts/uninstall.mjs` and resolve the intended Codex home.
+1. Resolve a trusted `codex-agents-compact-reload` checkout containing `scripts/uninstall.mjs` and resolve the intended Codex home. From this repository-scoped skill, the checkout root is three directories above this file.
 2. Inspect the installed `projects.json` names. If the user requested cleanup without saying which project and more than one registration exists, ask whether to remove named registrations or the complete installation.
 3. Always preview the exact cleanup:
 
