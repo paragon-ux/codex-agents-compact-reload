@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Made Windows hook commands quote-free through a validated short-path batch wrapper, avoiding openai/codex#38168.
+- Added a `cmd.exe` execution regression test and strengthened setup/host-acceptance verification for the exact installed command.
+
 ## 0.1.2 - 2026-08-30
 
 - Moved the setup and cleanup skills to the repository-discoverable `.agents/skills/` location.

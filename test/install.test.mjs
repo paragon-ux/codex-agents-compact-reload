@@ -34,7 +34,7 @@ function runInstaller(codexHome, projectRoot, codexVersion = "0.147.0") {
 
 test("installs a project-scoped compact SessionStart hook without replacing unrelated hooks", () => {
   const projectRoot = makeProject();
-  const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "agents-codex-home-"));
+  const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "agents codex home "));
   const hooksPath = path.join(codexHome, "hooks.json");
   fs.writeFileSync(hooksPath, JSON.stringify({
     description: "existing",
@@ -50,10 +50,12 @@ test("installs a project-scoped compact SessionStart hook without replacing unre
 
   const installedDirectory = path.join(codexHome, "hooks", "agents-compact-reload");
   const installedHook = path.join(installedDirectory, "reload-agents.mjs");
+  const installedWrapper = path.join(installedDirectory, "reload-agents.cmd");
   const projects = JSON.parse(fs.readFileSync(path.join(installedDirectory, "projects.json"), "utf8"));
   const hooks = JSON.parse(fs.readFileSync(hooksPath, "utf8"));
 
   assert.equal(fs.existsSync(installedHook), true);
+  assert.equal(fs.existsSync(installedWrapper), process.platform === "win32");
   assert.deepEqual(projects.projects, [{ name: "demo", root: fs.realpathSync.native(projectRoot) }]);
   assert.equal(projects.format_version, 1);
   assert.equal(projects.installed_for_codex_version, "0.147.0");
@@ -64,7 +66,14 @@ test("installs a project-scoped compact SessionStart hook without replacing unre
   assert.equal(hooks.hooks.SessionStart.length, 1, "repeat installation must not duplicate the hook");
   assert.equal(hooks.hooks.SessionStart[0].matcher, "compact");
   assert.equal(hooks.hooks.SessionStart[0].hooks[0].type, "command");
-  assert.match(hooks.hooks.SessionStart[0].hooks[0].commandWindows, /reload-agents\.mjs/);
+  const installedHandler = hooks.hooks.SessionStart[0].hooks[0];
+  if (process.platform === "win32") {
+    assert.doesNotMatch(installedHandler.commandWindows, /["\r\n]/);
+    assert.equal(installedHandler.commandWindows.split(" ").length, 1);
+    assert.match(fs.readFileSync(installedWrapper, "utf8"), /reload-agents\.mjs/);
+  } else {
+    assert.match(installedHandler.commandWindows, /reload-agents\.mjs/);
+  }
   assert.equal(Object.hasOwn(hooks.hooks, "PostCompact"), false);
 
   const hookResult = spawnSync(process.execPath, [installedHook], {
@@ -78,6 +87,25 @@ test("installs a project-scoped compact SessionStart hook without replacing unre
   assert.equal(hookResult.status, 0, hookResult.stderr);
   const parsed = JSON.parse(hookResult.stdout);
   assert.match(parsed.hookSpecificOutput.additionalContext, /Installed project instructions/);
+
+  if (process.platform === "win32") {
+    const commandResult = spawnSync(
+      process.env.ComSpec || "cmd.exe",
+      ["/d", "/s", "/c", installedHandler.commandWindows],
+      {
+        input: JSON.stringify({
+          hook_event_name: "SessionStart",
+          source: "compact",
+          cwd: projectRoot,
+        }),
+        encoding: "utf8",
+        windowsHide: true,
+      },
+    );
+    assert.equal(commandResult.status, 0, commandResult.stderr);
+    const commandOutput = JSON.parse(commandResult.stdout);
+    assert.match(commandOutput.hookSpecificOutput.additionalContext, /Installed project instructions/);
+  }
 });
 
 test("dry-run reports paths without writing CODEX_HOME", () => {

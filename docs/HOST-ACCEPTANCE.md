@@ -12,10 +12,14 @@ Before the session starts, retain:
 - Codex version, which must be a stable release at or above `0.145.0`;
 - Node executable path, version, and SHA-256;
 - installed `reload-agents.mjs` path and SHA-256;
+- installed `reload-agents.cmd` path and SHA-256 on Windows;
+- installed `hooks.json` path and SHA-256, including the exact platform command;
 - installed `projects.json` path and SHA-256; and
 - disposable project root and initial `AGENTS.md` SHA-256.
 
 Install through the `$codex-compact-reload-setup` companion skill and review/trust the generated hook definition. Confirm the installed `projects.json` records the same `installed_for_codex_version`, `minimum_codex_version`, and compact-delivery fix commit as the frozen test identity.
+
+On Windows, require `commandWindows` to contain no double quotes, line breaks, or spaces and require its single short-path token to resolve to the frozen wrapper. Inspect and hash the wrapper, verify its quoted targets resolve to the frozen Node executable and installed hook, and exercise the exact registered command through `cmd.exe` with a simulated compact payload before starting Codex. This guards against the Windows command-runner failure tracked in [openai/codex#38168](https://github.com/openai/codex/issues/38168); direct invocation of the JavaScript file alone does not cover it.
 
 ## Manual compaction
 
