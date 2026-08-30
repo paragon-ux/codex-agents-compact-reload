@@ -33,6 +33,17 @@ node scripts/install.mjs --project my-project=<PROJECT_ROOT>
 
 The installer copies the hook beneath the active Codex home, registers one compact-triggered `SessionStart` command in `hooks.json`, and records the canonical project root. Existing unrelated hooks are preserved. After installation, trust the new hook in Codex Settings > Hooks or with `/hooks`.
 
+## Why use it?
+
+| Approach | Context and cache cost | Recovery control |
+|---|---|---|
+| No hook | No added context | Relies on the retained instruction snapshot; no explicit reload or source hash |
+| Manual prompt | Adds a turn and usually repeats recovery context | Depends on a person noticing compaction and prompting consistently |
+| Ralph-style loop | Reconstructs state for another iteration; changing prefixes can reduce cache reuse | Useful for repeated autonomous runs, but adds another startup and restoration surface |
+| This hook | Adds one bounded, deterministic instruction artifact to the existing compact continuation | Automatically reloads the registered root file and exposes its exact source and hash |
+
+The hook is designed to preserve prompt-cache-friendly stable context, avoid a separate recovery turn, and reduce stale-phase or wrong-workspace mistakes. See [Rationale](Rationale.MD) for the detailed comparison and limits.
+
 ## Why `SessionStart`, not `PostCompact`?
 
 Codex's `PostCompact` command output can report status or stop continuation, but it does not provide the `additionalContext` channel needed to put instructions into the next model request. Codex emits `SessionStart` with source `compact` for the immediate continuation, and that event supports `additionalContext`.

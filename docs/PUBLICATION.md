@@ -12,6 +12,7 @@
 | Installer | Include | It makes host mutations reviewable and reproducible. |
 | Tests | Include | They bound the verified claims. |
 | Architecture and security notes | Include | They expose trust and data-access boundaries. |
+| Alternatives matrix and rationale | Include | They explain the tradeoffs without overstating cache behavior or compliance guarantees. |
 | Local paths and host configuration | Exclude | They are machine-specific and sensitive. |
 | Conversation transcripts and private task inputs | Exclude | They are unnecessary and not authorized for publication. |
 | Third-party source code | Exclude | The implementation is clean and dependency-free. |
@@ -26,7 +27,7 @@ The repository's automated tests exercise generated hook payloads and a temporar
 
 ## Release audit
 
-On 2026-08-30, the exact pre-Git release tree passed `npm run verify` with 7 of 7 tests. The public sanitizer scanned all 14 files with 0 BLOCK findings, 0 WARN findings, 0 suppressed files or lines, and 0 scan errors.
+On 2026-08-30, the current release tree passed `npm run verify` with 7 of 7 tests. The public sanitizer scanned all 15 files with 0 BLOCK findings, 0 WARN findings, 0 suppressed files or lines, and 0 scan errors.
 
 ## Release decision
 
