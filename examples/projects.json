@@ -1,0 +1,9 @@
+{
+  "projects": [
+    {
+      "name": "example-project",
+      "root": "<PROJECT_ROOT>"
+    }
+  ]
+}
+

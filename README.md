@@ -1,0 +1,130 @@
+# Codex AGENTS.md Compact Reload
+
+Keep project instructions present at the moment they matter most: immediately after Codex compacts a long-running conversation.
+
+This small, dependency-free hook reloads the registered Git root's `AGENTS.md`, computes its SHA-256, and supplies the exact UTF-8 text to Codex's immediate post-compaction continuation. It does not inspect transcripts, retain prompts, or write runtime state into the project.
+
+## Quick start
+
+Requirements:
+
+- Codex with lifecycle hooks enabled.
+- Node.js 20 or newer.
+- Git on `PATH`.
+- A nonempty UTF-8 `AGENTS.md` at the registered Git root.
+
+Verify the checkout:
+
+```sh
+npm run verify
+```
+
+Preview installation without writing anything:
+
+```sh
+node scripts/install.mjs --project my-project=<PROJECT_ROOT> --dry-run
+```
+
+Install for that project:
+
+```sh
+node scripts/install.mjs --project my-project=<PROJECT_ROOT>
+```
+
+The installer copies the hook beneath the active Codex home, registers one compact-triggered `SessionStart` command in `hooks.json`, and records the canonical project root. Existing unrelated hooks are preserved. After installation, trust the new hook in Codex Settings > Hooks or with `/hooks`.
+
+## Why `SessionStart`, not `PostCompact`?
+
+Codex's `PostCompact` command output can report status or stop continuation, but it does not provide the `additionalContext` channel needed to put instructions into the next model request. Codex emits `SessionStart` with source `compact` for the immediate continuation, and that event supports `additionalContext`.
+
+The installed hook therefore uses:
+
+```text
+SessionStart
+  matcher: compact
+    -> validate registered Git root
+    -> read root AGENTS.md as strict UTF-8
+    -> enforce 32 KiB limit
+    -> compute SHA-256
+    -> inject instructions into immediate continuation
+```
+
+This supplements Codex's normal [`AGENTS.md` instruction discovery](https://learn.chatgpt.com/docs/agent-configuration/agents-md); it does not replace it.
+
+## Behavior examples
+
+### Registered project
+
+A compact continuation inside a registered project receives the root `AGENTS.md` text, canonical source path, project label, and source SHA-256.
+
+### Nested working directory
+
+A task working below the registered root is accepted only when Git resolves it back to that exact registered root.
+
+### Unregistered project
+
+The global hook returns an empty result and does nothing.
+
+### Invalid registered project
+
+Missing, empty, oversized, escaping, or invalid UTF-8 `AGENTS.md` content stops the compact continuation instead of producing success-shaped context.
+
+## Multiple projects
+
+Register several projects in one installation:
+
+```sh
+node scripts/install.mjs \
+  --project frontend=<FRONTEND_ROOT> \
+  --project backend=<BACKEND_ROOT>
+```
+
+On PowerShell, place the command on one line or use PowerShell's normal continuation syntax.
+
+## Privacy and trust boundary
+
+At runtime the hook reads only:
+
+- the hook JSON payload supplied on standard input;
+- its own `projects.json` registration file;
+- Git's observed repository root; and
+- the registered root's `AGENTS.md`.
+
+It does not read Codex session files, transcripts, prompts, tool results, environment-variable values, credentials, or task artifacts. It writes no runtime handoff or history files. See [Security](docs/SECURITY.md) for the complete boundary.
+
+`AGENTS.md` remains an instruction source, not evidence that work occurred. Claims about patches, tests, Git state, or external actions still require direct verification.
+
+## Verification evidence
+
+The current automated suite covers:
+
+- exact content and SHA-256 injection;
+- nested working directories;
+- unregistered-project no-op behavior;
+- event filtering;
+- missing, empty, oversized, and invalid UTF-8 failures;
+- installer preservation of unrelated hooks;
+- repeat-install idempotence;
+- installed-hook execution; and
+- dry-run non-mutation.
+
+Run the exact suite with `npm run verify`. The initial release was exercised on Windows with Node.js 22 and Git for Windows. A real Codex auto/manual compaction acceptance test remains a host-level verification step; the repository suite simulates the documented hook payload and validates the exact command output.
+
+## Limitations
+
+- This is continuity assistance, not an authenticated phase-authority system.
+- The source hash is reported but is not compared to an independently frozen expected hash.
+- The installer modifies the selected Codex home's `hooks.json` and requires explicit hook trust afterward.
+- Hook availability and event behavior depend on the installed Codex version.
+- Only the root `AGENTS.md` is reloaded; nested instruction-chain files are outside this tool's promise.
+
+See [Architecture](docs/ARCHITECTURE.md) and [Publication record](docs/PUBLICATION.md) for design and provenance details.
+
+## Design provenance
+
+The project was independently implemented from the required behavior and the inspected Codex hook contract. The project concept was informed by [codex-compact-continuity](https://github.com/Sakiyary/codex-compact-continuity), which addresses a broader continuity problem. No source code from that project is included here.
+
+## License
+
+No project license has been selected yet. Public visibility alone does not grant permission to copy, modify, or redistribute the code. The repository owner should select and add a license before inviting reuse.
+
