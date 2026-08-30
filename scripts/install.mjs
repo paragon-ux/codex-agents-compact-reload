@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
+import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
@@ -162,6 +163,99 @@ function quoteCommandArgument(value) {
   return `"${value}"`;
 }
 
+function sameWindowsPath(left, right) {
+  return path.resolve(left).toLowerCase() === path.resolve(right).toLowerCase();
+}
+
+export function quoteFreeWindowsPath(existingPath, label) {
+  const canonical = fs.realpathSync.native(path.resolve(existingPath));
+  if (process.platform !== "win32") {
+    return canonical;
+  }
+  if (canonical.includes('"')) {
+    throw new Error(`${label} cannot contain a double quote`);
+  }
+
+  const windowsPowerShell = path.join(
+    process.env.SystemRoot || "C:\\Windows",
+    "System32",
+    "WindowsPowerShell",
+    "v1.0",
+    "powershell.exe",
+  );
+  const shortPathScript = `
+$definition = @'
+using System;
+using System.Text;
+using System.Runtime.InteropServices;
+public static class CompactReloadNativePath {
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern uint GetShortPathName(string longPath, StringBuilder shortPath, uint bufferLength);
+}
+'@
+Add-Type -TypeDefinition $definition
+$builder = New-Object System.Text.StringBuilder 32768
+$count = [CompactReloadNativePath]::GetShortPathName(
+    $env:CODEX_COMPACT_RELOAD_LONG_PATH,
+    $builder,
+    [uint32]$builder.Capacity
+)
+if ($count -eq 0 -or $count -ge $builder.Capacity) { exit 1 }
+[Console]::Out.Write($builder.ToString())
+`;
+  const encodedScript = Buffer.from(shortPathScript, "utf16le").toString("base64");
+  const result = spawnSync(
+    windowsPowerShell,
+    ["-NoProfile", "-NonInteractive", "-EncodedCommand", encodedScript],
+    {
+      encoding: "utf8",
+      env: { ...process.env, CODEX_COMPACT_RELOAD_LONG_PATH: canonical },
+      windowsHide: true,
+    },
+  );
+  const shortPath = result.stdout.trim();
+  if (result.status !== 0 || !shortPath) {
+    throw new Error(`${label} has no usable Windows short path`);
+  }
+  if (/[\s"&|<>^()%!]/u.test(shortPath)) {
+    throw new Error(
+      `${label} cannot be represented as a quote-free Windows command token; enable NTFS short names or use a space-free installation path`,
+    );
+  }
+
+  let resolvedShortPath;
+  try {
+    resolvedShortPath = fs.realpathSync.native(shortPath);
+  } catch {
+    throw new Error(`${label} Windows short path does not resolve`);
+  }
+  if (!sameWindowsPath(resolvedShortPath, canonical)) {
+    throw new Error(`${label} Windows short path resolves to a different file`);
+  }
+  return shortPath;
+}
+
+function batchArgument(value, label) {
+  const canonical = fs.realpathSync.native(path.resolve(value));
+  if (canonical.includes('"')) {
+    throw new Error(`${label} cannot contain a double quote`);
+  }
+  return `"${canonical.replaceAll("%", "%%")}"`;
+}
+
+export function windowsWrapperContent(nodePath, installedHookPath) {
+  return [
+    "@echo off",
+    `${batchArgument(nodePath, "Node executable")} ${batchArgument(installedHookPath, "installed hook")}`,
+    "exit /b %errorlevel%",
+    "",
+  ].join("\r\n");
+}
+
+export function windowsHookCommand(installedWrapperPath) {
+  return quoteFreeWindowsPath(installedWrapperPath, "installed Windows wrapper");
+}
+
 export function projectsArray(config) {
   return Array.isArray(config) ? config : Array.isArray(config?.projects) ? config.projects : [];
 }
@@ -219,7 +313,7 @@ export function removeHookHandlers(existingConfig, installedHookPath) {
   return { config, removedHandlers };
 }
 
-function mergeHooks(existingConfig, command, installedHookPath) {
+function mergeHooks(existingConfig, command, commandWindows, installedHookPath) {
   const { config } = removeHookHandlers(existingConfig, installedHookPath);
   config.hooks.SessionStart ||= [];
   config.hooks.SessionStart.push({
@@ -227,7 +321,7 @@ function mergeHooks(existingConfig, command, installedHookPath) {
     hooks: [{
       type: "command",
       command,
-      commandWindows: command,
+      commandWindows,
       timeout: 5,
       statusMessage: "Reloading project AGENTS.md after compaction",
       additionalContextLimit: 0,
@@ -246,21 +340,26 @@ export function installationPlan(options) {
   const nodePath = fs.realpathSync.native(path.resolve(options.nodePath));
   const installDirectory = path.join(codexHome, "hooks", INSTALL_DIRECTORY_NAME);
   const installedHookPath = path.join(installDirectory, "reload-agents.mjs");
+  const installedWrapperPath = path.join(installDirectory, "reload-agents.cmd");
   const projectsPath = path.join(installDirectory, "projects.json");
   const hooksPath = path.join(codexHome, "hooks.json");
   const command = `${quoteCommandArgument(nodePath)} ${quoteCommandArgument(installedHookPath)}`;
+  const commandWindows = process.platform === "win32"
+    ? (fs.existsSync(installedWrapperPath) ? windowsHookCommand(installedWrapperPath) : null)
+    : command;
   return {
     codexHome,
     nodePath,
     installDirectory,
     installedHookPath,
+    installedWrapperPath,
     projectsPath,
     hooksPath,
     command,
+    commandWindows,
     codexVersion,
     projects,
     projectsConfig: mergeProjects(readJson(projectsPath, { projects: [] }), projects, codexVersion),
-    hooksConfig: mergeHooks(readJson(hooksPath, { hooks: {} }), command, installedHookPath),
   };
 }
 
@@ -270,23 +369,47 @@ function install(options) {
     process.stdout.write(`${JSON.stringify({
       codex_home: plan.codexHome,
       hook_path: plan.installedHookPath,
+      windows_wrapper_path: plan.installedWrapperPath,
       projects_path: plan.projectsPath,
       hooks_path: plan.hooksPath,
       codex_version: plan.codexVersion,
       minimum_codex_version: MINIMUM_CODEX_VERSION,
       projects: plan.projects,
       command: plan.command,
+      command_windows: plan.commandWindows,
+      windows_command_note: process.platform === "win32" && !fs.existsSync(plan.installedWrapperPath)
+        ? "The quote-free Windows command is resolved after the installed wrapper exists."
+        : undefined,
     }, null, 2)}\n`);
     return;
   }
 
   fs.mkdirSync(plan.installDirectory, { recursive: true });
   fs.copyFileSync(SOURCE_HOOK, plan.installedHookPath);
+  if (process.platform === "win32") {
+    fs.writeFileSync(
+      plan.installedWrapperPath,
+      windowsWrapperContent(plan.nodePath, plan.installedHookPath),
+      "utf8",
+    );
+  }
+  const commandWindows = process.platform === "win32"
+    ? windowsHookCommand(plan.installedWrapperPath)
+    : plan.command;
+  const hooksConfig = mergeHooks(
+    readJson(plan.hooksPath, { hooks: {} }),
+    plan.command,
+    commandWindows,
+    plan.installedHookPath,
+  );
   writeJsonAtomic(plan.projectsPath, plan.projectsConfig);
-  writeJsonAtomic(plan.hooksPath, plan.hooksConfig);
+  writeJsonAtomic(plan.hooksPath, hooksConfig);
 
   process.stdout.write(`Installed AGENTS.md compact reload hook.\n`);
   process.stdout.write(`Hook: ${plan.installedHookPath}\n`);
+  if (process.platform === "win32") {
+    process.stdout.write(`Windows wrapper: ${plan.installedWrapperPath}\n`);
+  }
   process.stdout.write(`Projects: ${plan.projectsPath}\n`);
   process.stdout.write(`Codex hooks: ${plan.hooksPath}\n`);
   process.stdout.write(`Codex compatibility: ${plan.codexVersion} (minimum ${MINIMUM_CODEX_VERSION})\n`);

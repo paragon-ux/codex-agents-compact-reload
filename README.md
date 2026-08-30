@@ -49,6 +49,8 @@ node scripts/install.mjs --project my-project=<PROJECT_ROOT> --codex-version <CO
 
 The installer copies the hook beneath the active Codex home, registers one compact-triggered `SessionStart` command in `hooks.json`, and records the canonical project root plus the asserted Codex compatibility identity. Existing unrelated hooks are preserved. After installation, trust the new hook in Codex Settings > Hooks or with `/hooks`.
 
+On Windows, the installer writes a small batch wrapper and registers its validated, quote-free NTFS short path. The wrapper holds the normally quoted Node and hook paths outside Codex's outer command line. This avoids the `cmd.exe /C` embedded-quote failure tracked in [openai/codex#38168](https://github.com/openai/codex/issues/38168). Installation fails closed when the wrapper cannot be represented as a safe quote-free token.
+
 ## Companion skills
 
 The [`.agents/skills/`](.agents/skills/) directory contains two repository-scoped workflows in Codex's [documented discovery location](https://learn.chatgpt.com/docs/build-skills#where-codex-loads-local-skills):
@@ -157,7 +159,7 @@ The current automated suite covers:
 - partial deregistration; and
 - complete, recoverable uninstall without unrelated-hook loss.
 
-Run the exact suite with `npm run verify`. The initial release was exercised on Windows with Node.js 22 and Git for Windows. A real Codex auto/manual compaction acceptance test remains a host-level verification step; the repository suite simulates the documented hook payload and validates the exact command output. Follow the [host acceptance protocol](docs/HOST-ACCEPTANCE.md) before making the hook a hard dependency of a high-assurance workflow.
+Run the exact suite with `npm run verify`. The initial release was exercised on Windows with Node.js 22 and Git for Windows. On Windows, the suite also invokes the installed quote-free handler through `cmd.exe`. A real Codex auto/manual compaction acceptance test remains a host-level verification step; follow the [host acceptance protocol](docs/HOST-ACCEPTANCE.md) before making the hook a hard dependency of a high-assurance workflow.
 
 CI runs the same verification suite on Windows and Linux with Node.js 20, 22, and 24.
 

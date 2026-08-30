@@ -17,6 +17,8 @@ For an explicitly registered Git repository, inject the exact root `AGENTS.md` t
 5. Merges project registrations and the compatibility identity into `projects.json`.
 6. Merges one compact `SessionStart` handler into `<CODEX_HOME>/hooks.json` while preserving unrelated handlers.
 
+On Windows, Codex 0.147.0 wraps hook commands with `cmd.exe /C` in a form that mis-parses embedded quoted segments (openai/codex#38168). The installer therefore writes a minimal batch wrapper containing the normally quoted Node and hook paths, then registers the wrapper's validated, quote-free NTFS short path as `commandWindows`. It fails closed when that token cannot be represented safely. Other platforms retain canonical quoted paths.
+
 The installer is repeatable. It removes an earlier handler that points to the same installed runtime before adding the current handler.
 
 The setup companion skill wraps this installer with checkout verification, a dry run, installed-file hashes, and an explicit reminder that simulated hook input is not real-host compaction evidence.
