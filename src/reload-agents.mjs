@@ -70,7 +70,12 @@ function configuredRoot(value, label) {
   if (!path.isAbsolute(value)) {
     throw new Error(`${label} must be absolute`);
   }
-  return path.normalize(value);
+  const normalized = path.normalize(value);
+  try {
+    return canonicalExistingDirectory(normalized, label);
+  } catch {
+    return normalized;
+  }
 }
 
 function isInside(root, candidate) {
