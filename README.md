@@ -98,6 +98,18 @@ SessionStart
 
 This supplements Codex's normal [`AGENTS.md` instruction discovery](https://learn.chatgpt.com/docs/agent-configuration/agents-md); it does not replace it.
 
+## Multi-Harness Support Tiers
+
+Beyond OpenAI Codex, this bootloader supports a unified 3-tier continuity classification across agent harnesses:
+
+| Support Tier | Mechanism | Delivery Guarantee | Target Harnesses |
+| :--- | :--- | :--- | :--- |
+| **Tier 1: Active Lifecycle Hook** | Out-of-context process execution on compaction boundary. | **100% deterministic.** Instructions prepended before model turn. | **OpenAI Codex** (`SessionStart`), **Google Antigravity** (`PreInvocation.injectSteps`), **Claude Code** (`post_compact`). |
+| **Tier 2: MCP Ingestion** | In-band Model Context Protocol primitives. | **High reliability.** Standardized pull via resources/prompts. | **Claude Code**, **Cursor Composer**, **Windsurf**, **Cline**. |
+| **Tier 3: Persistent Directives** | Sticky system instruction files (`CLAUDE.md`, `.cursor/rules/*.mdc`). | **Best-effort.** Instructs model to reload rules as step 1. | **Cursor**, **Claude Code**, **Antigravity**. |
+
+See [Support Tiers Guide](docs/SUPPORT-TIERS.md) for full configuration schemas and integration details.
+
 ## Behavior examples
 
 ### Registered project

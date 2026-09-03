@@ -121,3 +121,35 @@ test("fails closed when AGENTS.md is missing, empty, oversized, or invalid UTF-8
   fs.writeFileSync(agentsPath, Buffer.from([0xc3, 0x28]));
   assert.throws(() => buildHookOutput(compactPayload(root), { projectsPath: configPath }), /valid UTF-8/);
 });
+
+test("supports Google Antigravity / Gemini injectSteps contract", () => {
+  const contents = "# Antigravity instructions\n\nPreserve workspace state.\n";
+  const root = makeGitProject("agents-agy", contents);
+  const configPath = writeProjects([{ name: "agy-demo", root }]);
+
+  const agyPayload = {
+    workspacePaths: [root],
+    invocationNum: 3,
+  };
+
+  const output = buildHookOutput(agyPayload, { projectsPath: configPath });
+  assert.ok(Array.isArray(output.injectSteps), "output should contain injectSteps array");
+  assert.equal(output.injectSteps.length, 1);
+  assert.match(output.injectSteps[0].ephemeralMessage, /Project: agy-demo/);
+  assert.match(output.injectSteps[0].ephemeralMessage, /Preserve workspace state\./);
+});
+
+test("supports explicit markdown and json format options", () => {
+  const contents = "# Direct CLI instructions\n";
+  const root = makeGitProject("agents-direct", contents);
+  const configPath = writeProjects([{ name: "direct-demo", root }]);
+
+  const mdOutput = buildHookOutput({}, { format: "markdown", cwd: root, projectsPath: configPath });
+  assert.equal(mdOutput.format, "markdown");
+  assert.match(mdOutput.context, /Direct CLI instructions/);
+
+  const jsonOutput = buildHookOutput({}, { format: "json", cwd: root, projectsPath: configPath });
+  assert.equal(jsonOutput.project, "direct-demo");
+  assert.equal(jsonOutput.text, contents);
+  assert.ok(jsonOutput.sha256);
+});

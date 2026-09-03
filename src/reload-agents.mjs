@@ -158,9 +158,36 @@ function readAgents(projectRoot, maxBytes = DEFAULT_MAX_BYTES) {
   };
 }
 
+function parseFlags(argv) {
+  let format = null;
+  let customCwd = null;
+  let projectsPath = null;
+  for (const arg of argv) {
+    if (arg.startsWith("--format=")) format = arg.split("=")[1];
+    if (arg.startsWith("--cwd=")) customCwd = arg.split("=")[1];
+    if (arg.startsWith("--projects-file=")) projectsPath = arg.split("=")[1];
+  }
+  return { format, customCwd, projectsPath };
+}
+
 export function buildHookOutput(payload, options = {}) {
-  if (payload?.hook_event_name !== "SessionStart" || payload?.source !== "compact") {
-    return {};
+  let format = options.format;
+  let rawCwd = payload?.cwd;
+
+  if (payload?.hook_event_name) {
+    if (payload.hook_event_name !== "SessionStart" || payload.source !== "compact") {
+      return {};
+    }
+    if (!format) format = "codex";
+  } else if (payload?.workspacePaths || payload?.invocationNum !== undefined) {
+    if (!format) format = "agy";
+    if (Array.isArray(payload.workspacePaths) && payload.workspacePaths[0]) {
+      rawCwd = payload.workspacePaths[0];
+    }
+  }
+
+  if (!format) {
+    format = "codex";
   }
 
   const configPath = path.resolve(
@@ -168,7 +195,7 @@ export function buildHookOutput(payload, options = {}) {
       || process.env.AGENTS_COMPACT_RELOAD_PROJECTS_FILE
       || DEFAULT_PROJECTS_PATH,
   );
-  const cwd = canonicalExistingDirectory(payload.cwd, "hook cwd");
+  const cwd = canonicalExistingDirectory(rawCwd || options.cwd || process.cwd(), "hook cwd");
   const project = selectProject(configuredProjects(configPath), cwd);
   if (!project) {
     return {};
@@ -193,6 +220,32 @@ export function buildHookOutput(payload, options = {}) {
     "</project-agents-md>",
   ].join("\n");
 
+  if (format === "agy") {
+    return {
+      injectSteps: [
+        {
+          ephemeralMessage: context,
+        },
+      ],
+    };
+  }
+
+  if (format === "markdown") {
+    return {
+      format: "markdown",
+      context,
+    };
+  }
+
+  if (format === "json") {
+    return {
+      project: project.name,
+      source: agents.path,
+      sha256: agents.sha256,
+      text: agents.text,
+    };
+  }
+
   return {
     hookSpecificOutput: {
       hookEventName: "SessionStart",
@@ -214,14 +267,29 @@ async function readStdin() {
 }
 
 async function main() {
+  const flags = parseFlags(process.argv.slice(2));
   try {
     const raw = await readStdin();
     if (!raw.trim()) {
+      if (flags.format === "markdown" || flags.format === "json") {
+        const output = buildHookOutput({}, { format: flags.format, cwd: flags.customCwd, projectsPath: flags.projectsPath });
+        if (flags.format === "markdown") {
+          process.stdout.write(`${output.context || ""}\n`);
+        } else {
+          jsonOut(output);
+        }
+        return;
+      }
       jsonOut(stop("hook input is empty"));
       return;
     }
     const payload = parseJson(raw, "hook input");
-    jsonOut(buildHookOutput(payload));
+    const output = buildHookOutput(payload, { format: flags.format, cwd: flags.customCwd, projectsPath: flags.projectsPath });
+    if (flags.format === "markdown") {
+      process.stdout.write(`${output.context || ""}\n`);
+    } else {
+      jsonOut(output);
+    }
   } catch (error) {
     jsonOut(stop(error instanceof Error ? error.message : "unexpected error"));
   }
