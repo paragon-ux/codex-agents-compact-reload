@@ -40,6 +40,8 @@ On 2026-08-30, the local `v0.1.2` candidate passed `npm run verify` with 11 of 1
 
 On 2026-08-30, the `v0.1.3` candidate passed the 11-test automated suite and the exact installed Windows command was exercised through `cmd.exe`. A fresh Codex 0.147.0 session using `gpt-5.6-sol` then completed one manual compaction with exactly one immediate reload of the registered `AGENTS.md` identity and no compact-context replay on the next ordinary turn. This targeted host regression closes the Windows launch blocker; it does not claim completion of the separate automatic-compaction host campaign. The sanitizer scanned all 27 files with 1 BLOCK finding, 5 WARN findings, 0 suppressed files or lines, and 0 scan errors. The BLOCK remains the authorized public repository-owner handle in the CI badge; the WARNs remain the public OpenAI fix-commit and stable-release URLs described above.
 
+On 2026-09-03, the `v0.2.0` candidate passed `npm run verify` with 13 of 13 tests, covering Codex, Antigravity, Markdown, and JSON payload contracts. The project was neutrally reframed to **AGENTS.md Compact Reload** across documentation, dedicated `harnesses/` guides were established for all major coding harnesses, and companion repository `Waymark` references were synchronized.
+
 ## Release decision
 
-`READY WITH DISCLOSED LIMITS` for public release under the MIT License. Automated, simulated-command, and one fresh manual-compaction regression are current; full automatic-compaction host acceptance remains unclaimed until the complete host protocol passes.
+`READY WITH DISCLOSED LIMITS` for public release under the MIT License. Automated, simulated-command, and multi-harness test suites are current; full automatic-compaction host acceptance remains unclaimed until the complete host protocol passes.

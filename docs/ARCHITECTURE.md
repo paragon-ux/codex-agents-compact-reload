@@ -2,7 +2,7 @@
 
 ## Public promise
 
-For an explicitly registered Git repository, inject the exact root `AGENTS.md` text into Codex's immediate post-compaction continuation without reading or persisting the surrounding conversation.
+For an explicitly registered Git repository, inject the exact root `AGENTS.md` text into the immediate post-compaction continuation across AI agent harnesses (OpenAI Codex, Google Antigravity, Claude Code, Cursor) without reading or persisting the surrounding conversation.
 
 ## Components
 
@@ -23,7 +23,7 @@ The installer is repeatable. It removes an earlier handler that points to the sa
 
 The setup companion skill wraps this installer with checkout verification, a dry run, installed-file hashes, and an explicit reminder that simulated hook input is not real-host compaction evidence.
 
-Stable Codex CLI 0.145.0 is the compatibility floor because it is the first stable release containing OpenAI's immediate compact-continuation delivery fix (`8c41ed33`). Earlier builds can defer and replay compact `SessionStart` hooks. The runtime cannot repair that host ordering defect without a compact-boundary identifier, so unsupported hosts are rejected at installation rather than producing a weakened success claim.
+Stable Codex CLI 0.145.0 is the compatibility floor for the Codex integration because it is the first stable release containing OpenAI's immediate compact-continuation delivery fix (`8c41ed33`). Earlier builds can defer and replay compact `SessionStart` hooks. The runtime cannot repair that host ordering defect without a compact-boundary identifier, so unsupported hosts are rejected at installation rather than producing a weakened success claim.
 
 ### Uninstaller
 
@@ -33,30 +33,36 @@ The cleanup companion skill requires an exact named-project or `--all` scope and
 
 ### Runtime hook
 
-`src/reload-agents.mjs` is dependency-free and communicates exclusively through JSON on standard input and standard output.
+`src/reload-agents.mjs` is dependency-free and supports both JSON-RPC hook protocols (OpenAI Codex, Google Antigravity) on standard input/output and formatted Markdown/JSON streams for CLI and harness scripts.
 
 ```text
-Codex compact continuation
-        |
-        v
-SessionStart(source=compact)
-        |
-        v
-registered-root selection ---- no match ----> {}
-        |
-        v
-observed Git root == registered root
-        |
-        v
-root AGENTS.md validation
-        |
-        +---- invalid ----> continue=false
-        |
-        v
-strict UTF-8 decode + SHA-256
-        |
-        v
-SessionStart additionalContext
+       Context Compaction / Hook Trigger
+                       │
+       ┌───────────────┼───────────────┐
+       ▼               ▼               ▼
+  [ Codex ]     [ Antigravity ]   [ CLI / Claude Code ]
+SessionStart     PreInvocation      --format=markdown
+ (compact)       (workspacePaths)       (or json)
+       │               │               │
+       └───────────────┼───────────────┘
+                       ▼
+           registered-root selection ---- no match ----> {}
+                       │
+                       ▼
+           observed Git root == registered root
+                       │
+                       ▼
+             root AGENTS.md validation
+                       │
+                       +---- invalid ----> continue=false
+                       │
+                       ▼
+            strict UTF-8 decode + SHA-256
+                       │
+       ┌───────────────┼───────────────┐
+       ▼               ▼               ▼
+SessionStart       injectSteps       Markdown stdout
+additionalContext  ephemeralMessage   (or JSON obj)
 ```
 
 ## Security properties
@@ -73,7 +79,7 @@ SessionStart additionalContext
 
 - Reconstructing conversation history.
 - Proving that an earlier command or test succeeded.
-- Reloading the complete hierarchical Codex instruction chain.
+- Reloading nested or hierarchical agent instruction chains.
 - Providing authenticated or immutable phase state.
 - Blocking all tool use until a separate evidence package is revalidated.
-- Proving a real Codex manual or automatic compaction round trip; that remains a host acceptance campaign.
+- Proving a real host manual or automatic compaction round trip; that remains a host acceptance campaign.

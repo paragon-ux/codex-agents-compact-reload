@@ -1,6 +1,6 @@
 ---
 name: codex-compact-reload-cleanup
-description: Safely deregister projects or uninstall the Codex AGENTS.md compact-reload hook while preserving unrelated hooks. Use for cleanup, removal, deregistration, or uninstall verification; do not use for setup.
+description: Safely deregister projects or uninstall the AGENTS.md compact-reload hook while preserving unrelated hooks. Use for cleanup, removal, deregistration, or uninstall verification; do not use for setup.
 ---
 
 # Compact Reload Cleanup

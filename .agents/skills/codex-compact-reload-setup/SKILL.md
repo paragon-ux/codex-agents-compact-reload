@@ -1,6 +1,6 @@
 ---
 name: codex-compact-reload-setup
-description: Install or register the Codex AGENTS.md compact-reload hook for one or more Git projects from a trusted project checkout. Use for setup, installation, registration, or installation verification; do not use for removal.
+description: Install or register the AGENTS.md compact-reload hook for one or more Git projects from a trusted project checkout. Use for setup, installation, registration, or installation verification; do not use for removal.
 ---
 
 # Compact Reload Setup

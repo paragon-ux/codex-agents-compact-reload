@@ -2,7 +2,7 @@
 
 ## Decision
 
-Reload the registered project root's `AGENTS.md` automatically in Codex's immediate post-compaction continuation. Keep the injection deterministic and bounded, and report the exact source path and SHA-256.
+Reload the registered project root's `AGENTS.md` automatically in the immediate post-compaction continuation across AI agent harnesses (such as OpenAI Codex, Google Antigravity, and Claude Code). Keep the injection deterministic and bounded, and report the exact source path and SHA-256.
 
 The intended control chain is:
 
@@ -14,7 +14,7 @@ The hook delivers the re-entry instructions. The instructions should require the
 
 ## Why not rely on no hook?
 
-Codex can retain an instruction snapshot across compaction, so a project may work without this hook. That is the lowest-setup option, but it provides no explicit post-compaction re-read, no observable recovery event, and no hash identifying the reloaded source.
+Agent harnesses can retain an instruction snapshot across compaction, so a project may work without this hook. That is the lowest-setup option, but it provides no explicit post-compaction re-read, no observable recovery event, and no hash identifying the reloaded source.
 
 For short or low-risk tasks, that may be sufficient. For long-running work with repository and phase boundaries, an explicit reload makes the recovery input inspectable and reduces the chance that a compacted conversation summary becomes the sole operational guide.
 
@@ -26,15 +26,15 @@ That costs time and context, and it creates another opportunity to restore the w
 
 ## Why not use a Ralph-style loop?
 
-A Ralph-style loop is valuable when the goal is repeated autonomous attempts or fresh process-level iterations. That is a different control problem from continuity inside one already-running Codex task.
+A Ralph-style loop is valuable when the goal is repeated autonomous attempts or fresh process-level iterations. That is a different control problem from continuity inside one already-running agent task.
 
 A loop commonly rebuilds prompt and state for each iteration. Stable prefixes may still benefit from prompt caching, but changing summaries, state blocks, ordering, or orchestration text can reduce prefix reuse. Each iteration also adds a startup, model invocation, and restoration surface where stale or misbound state can enter.
 
-This hook instead participates in the compact continuation Codex already needs. It supplies one fixed, project-owned artifact without starting a separate recovery conversation or orchestration cycle.
+This hook instead participates in the compact continuation the harness already needs. It supplies one fixed, project-owned artifact without starting a separate recovery conversation or orchestration cycle.
 
 ## Context, caching, and latency
 
-OpenAI's [model guidance](https://developers.openai.com/api/docs/guides/latest-model?model=gpt-5.5) recommends keeping stable content at the beginning of requests to improve prompt-cache reuse, which can reduce latency and input-token cost.
+Modern LLM provider guidance recommends keeping stable content at the beginning of requests to improve prompt-cache reuse, which can reduce latency and input-token cost.
 
 This design follows that principle by keeping durable re-entry controls in one deterministic file rather than regenerating them through an ad hoc prompt. It is therefore cache-friendlier than repeatedly changing recovery prose, but it does not promise a cache hit: exact cache behavior depends on how the host constructs the complete request and on the provider's caching implementation.
 
@@ -55,6 +55,6 @@ It also does not eliminate every reason to use manual prompts or autonomous loop
 - Use no hook for short, low-risk work where implicit continuity is enough.
 - Use manual prompting for new decisions, changed requirements, or human approval.
 - Use a Ralph-style loop for repeated autonomous attempts that intentionally need fresh iterations.
-- Use this hook when the same Codex task must recover standing project controls immediately after compaction.
+- Use this hook when the same agent task must recover standing project controls immediately after compaction.
 
 The claim is deliberately narrow: deterministic instruction reload improves re-entry consistency, context economy, and inspectability. Authoritative preflight checks remain responsible for proving that continuation is safe.
