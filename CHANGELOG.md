@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0 - 2026-09-03
+
+- Reframed project provenance to **AGENTS.md Compact Reload** across AI coding agent harnesses.
+- Added multi-harness payload auto-detection supporting OpenAI Codex (`SessionStart.additionalContext`), Google Antigravity / Gemini (`PreInvocation.injectSteps`), and CLI output streams (`--format=markdown|json`).
+- Established the Standardized 3-Tier Harness Support Model (Tier 1: Active Lifecycle Hook, Tier 2: MCP Ingestion, Tier 3: Persistent Directives).
+- Added formal multi-harness test suite covering Antigravity `injectSteps`, Markdown, and JSON serialization with 100% clean verification.
+- Reconciled architecture and documented clear division of labor with Waymark's in-flight continuity ledger (`.waymark/`).
+
 ## 0.1.3 - 2026-08-30
 
 - Made Windows hook commands quote-free through a validated short-path batch wrapper, avoiding openai/codex#38168.

@@ -2,7 +2,7 @@
   <img src="assets/compact-reload-icon.png" width="180" alt="A document wrapped by a continuous reload ribbon">
 </p>
 
-<h1 align="center">Codex AGENTS.md Compact Reload</h1>
+<h1 align="center">AGENTS.md Compact Reload</h1>
 
 <p align="center"><strong>Compaction happens. Your project rules come back.</strong></p>
 
@@ -10,9 +10,9 @@
   <a href="../../actions/workflows/ci.yml"><img src="https://github.com/paragon-ux/codex-agents-compact-reload/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
 </p>
 
-Keep project instructions present at the moment they matter most: immediately after Codex compacts a long-running conversation.
+Keep project instructions present at the moment they matter most: immediately after an agent harness compacts a long-running conversation.
 
-This small, dependency-free hook reloads the registered Git root's `AGENTS.md`, computes its SHA-256, and supplies the exact UTF-8 text to Codex's immediate post-compaction continuation. It does not inspect transcripts, retain prompts, or write runtime state into the project.
+This small, dependency-free bootloader reloads the registered Git root's `AGENTS.md`, computes its SHA-256, and supplies the exact UTF-8 text to the immediate post-compaction continuation across AI agent harnesses. It does not inspect transcripts, retain prompts, or write runtime state into the project.
 
 ## Quick start
 
