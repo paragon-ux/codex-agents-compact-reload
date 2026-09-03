@@ -14,121 +14,116 @@ Keep project instructions present at the moment they matter most: immediately af
 
 This small, dependency-free bootloader reloads the registered Git root's `AGENTS.md`, computes its SHA-256, and supplies the exact UTF-8 text to the immediate post-compaction continuation across AI agent harnesses. It does not inspect transcripts, retain prompts, or write runtime state into the project.
 
-## Quick start
+---
 
-Requirements:
+## Table of Contents
 
-- Stable Codex CLI 0.145.0 or newer with lifecycle hooks enabled.
-- Node.js 20 or newer.
-- Git on `PATH`.
-- A nonempty UTF-8 `AGENTS.md` at the registered Git root.
+- [Why Use It?](#why-use-it)
+- [Standardized 3-Tier Harness Model](#standardized-3-tier-harness-model)
+- [Quick Start](#quick-start)
+- [Supported Harnesses](#supported-harnesses)
+- [Division of Labor with Waymark](#division-of-labor-with-waymark)
+- [Multi-Project Registration](#multi-project-registration)
+- [Privacy and Trust Boundary](#privacy-and-trust-boundary)
+- [Verification Evidence](#verification-evidence)
+- [Repository Directory](#repository-directory)
+- [Documentation & Provenance](#documentation--provenance)
 
-Verify the checkout:
+---
 
-```sh
-npm run verify
-```
-
-Record the active Codex version. The installer requires this exact value:
-
-```sh
-codex --version
-```
-
-Preview installation without writing anything:
-
-```sh
-node scripts/install.mjs --project my-project=<PROJECT_ROOT> --codex-version <CODEX_VERSION> --dry-run
-```
-
-Install for that project:
-
-```sh
-node scripts/install.mjs --project my-project=<PROJECT_ROOT> --codex-version <CODEX_VERSION>
-```
-
-The installer copies the hook beneath the active Codex home, registers one compact-triggered `SessionStart` command in `hooks.json`, and records the canonical project root plus the asserted Codex compatibility identity. Existing unrelated hooks are preserved. After installation, trust the new hook in Codex Settings > Hooks or with `/hooks`.
-
-On Windows, the installer writes a small batch wrapper and registers its validated, quote-free NTFS short path. The wrapper holds the normally quoted Node and hook paths outside Codex's outer command line. This avoids the `cmd.exe /C` embedded-quote failure tracked in [openai/codex#38168](https://github.com/openai/codex/issues/38168). Installation fails closed when the wrapper cannot be represented as a safe quote-free token.
-
-## Companion skills
-
-The [`.agents/skills/`](.agents/skills/) directory contains two repository-scoped workflows in Codex's [documented discovery location](https://learn.chatgpt.com/docs/build-skills#where-codex-loads-local-skills):
-
-- `$codex-compact-reload-setup` verifies the checkout, previews installation, installs only when authorized, hashes the installed files, and distinguishes payload simulation from real-host acceptance.
-- `$codex-compact-reload-cleanup` previews and removes named registrations or the complete installation while preserving unrelated hooks.
-
-The cleanup skill uses the scoped uninstaller rather than asking an agent to improvise recursive deletion:
-
-```sh
-node scripts/uninstall.mjs --project my-project --dry-run
-node scripts/uninstall.mjs --project my-project
-```
-
-Use `--all` instead of `--project` only when the complete installation should be removed.
-
-## Why use it?
+## Why Use It?
 
 | Approach | Context and cache cost | Recovery control |
 |---|---|---|
 | No hook | No added context | Relies on the retained instruction snapshot; no explicit reload or source hash |
 | Manual prompt | Adds a turn and usually repeats recovery context | Depends on a person noticing compaction and prompting consistently |
 | Ralph-style loop | Reconstructs state for another iteration; changing prefixes can reduce cache reuse | Useful for repeated autonomous runs, but adds another startup and restoration surface |
-| This hook | Adds one bounded, deterministic instruction artifact to the existing compact continuation | Automatically reloads the registered root file and exposes its exact source and hash |
+| **This hook** | Adds one bounded, deterministic instruction artifact to the existing compact continuation | Automatically reloads the registered root file and exposes its exact source and hash |
 
 The hook is designed to preserve prompt-cache-friendly stable context, avoid a separate recovery turn, and reduce stale-phase or wrong-workspace mistakes. See [Rationale](Rationale.MD) for the detailed comparison and limits.
 
-## Why `SessionStart`, not `PostCompact`?
+---
 
-Codex's `PostCompact` command output can report status or stop continuation, but it does not provide the `additionalContext` channel needed to put instructions into the next model request. Codex emits `SessionStart` with source `compact` for the immediate continuation, and that event supports `additionalContext`.
+## Standardized 3-Tier Harness Model
 
-Older Codex builds had a delivery defect: automatic mid-turn compactions could queue this event until a later user turn, causing both missing immediate context and delayed duplicate injection ([openai/codex#28736](https://github.com/openai/codex/issues/28736)). OpenAI fixed it in commit [`8c41ed33`](https://github.com/openai/codex/commit/8c41ed33ce3e39460e7b13b14c35e0c39bb5980d), first included in [stable Codex CLI 0.145.0](https://github.com/openai/codex/releases/tag/rust-v0.145.0). Installation therefore rejects earlier releases. The hook cannot safely emulate this upstream timing guarantee because affected payloads contain no compact-boundary identity.
-
-The installed hook therefore uses:
-
-```text
-SessionStart
-  matcher: compact
-    -> validate registered Git root
-    -> read root AGENTS.md as strict UTF-8
-    -> enforce 32 KiB limit
-    -> compute SHA-256
-    -> inject instructions into immediate continuation
-```
-
-This supplements Codex's normal [`AGENTS.md` instruction discovery](https://learn.chatgpt.com/docs/agent-configuration/agents-md); it does not replace it.
-
-## Multi-Harness Support Tiers
-
-Beyond OpenAI Codex, this bootloader supports a unified 3-tier continuity classification across agent harnesses:
+Agent harnesses provide varying levels of context-injection capability, categorized into three distinct support tiers:
 
 | Support Tier | Mechanism | Delivery Guarantee | Target Harnesses |
 | :--- | :--- | :--- | :--- |
-| **Tier 1: Active Lifecycle Hook** | Out-of-context process execution on compaction boundary. | **100% deterministic.** Instructions prepended before model turn. | **OpenAI Codex** (`SessionStart`), **Google Antigravity** (`PreInvocation.injectSteps`), **Claude Code** (`post_compact`). |
+| **Tier 1: Active Lifecycle Hook** | Out-of-context process execution on compaction boundary. | **100% deterministic.** Instructions prepended before model turn; zero tokens spent remembering to recover. | **OpenAI Codex** (`SessionStart`), **Google Antigravity** (`PreInvocation.injectSteps`), **Claude Code** (`post_compact`). |
 | **Tier 2: MCP Ingestion** | In-band Model Context Protocol primitives. | **High reliability.** Standardized pull via resources/prompts. | **Claude Code**, **Cursor Composer**, **Windsurf**, **Cline**. |
-| **Tier 3: Persistent Directives** | Sticky system instruction files (`CLAUDE.md`, `.cursor/rules/*.mdc`). | **Best-effort.** Instructs model to reload rules as step 1. | **Cursor**, **Claude Code**, **Antigravity**. |
+| **Tier 3: Persistent Directives** | Sticky system instruction files (`CLAUDE.md`, `.cursor/rules/*.mdc`). | **Best-effort.** Instructs model to reload rules as step 1 when prior turn history is rolled. | **Cursor**, **Claude Code**, **Antigravity**. |
 
-See [Support Tiers Guide](docs/SUPPORT-TIERS.md) for full configuration schemas and integration details.
+See [Support Tiers Guide](docs/SUPPORT-TIERS.md) for full technical schemas.
 
-## Behavior examples
+---
 
-### Registered project
+## Quick Start
 
-A compact continuation inside a registered project receives the root `AGENTS.md` text, canonical source path, project label, and source SHA-256.
+### Requirements:
 
-### Nested working directory
+- Node.js 20 or newer.
+- Git on `PATH`.
+- A nonempty UTF-8 `AGENTS.md` at the registered Git root.
+- A supported AI coding agent harness (OpenAI Codex, Google Antigravity, Claude Code, Cursor, etc.).
 
-A task working below the registered root is accepted only when Git resolves it back to that exact registered root.
+### Verify the checkout:
 
-### Unregistered project
+```sh
+npm run verify
+```
 
-The global hook returns an empty result and does nothing.
+### Preview installation:
 
-### Invalid registered project
+```sh
+node scripts/install.mjs --project my-project=<PROJECT_ROOT> --codex-version <CODEX_VERSION> --dry-run
+```
 
-Missing, empty, oversized, escaping, or invalid UTF-8 `AGENTS.md` content stops the compact continuation instead of producing success-shaped context.
+### Install for that project:
 
-## Multiple projects
+```sh
+node scripts/install.mjs --project my-project=<PROJECT_ROOT> --codex-version <CODEX_VERSION>
+```
+
+---
+
+## Supported Harnesses
+
+Dedicated setup guides and recipes are located in [`harnesses/`](harnesses/):
+
+- **[OpenAI Codex (`harnesses/codex/`)](harnesses/codex/README.md):** Deep dive on why `SessionStart` (not `PostCompact`), minimum version 0.145.0, Windows NTFS quote-free short path wrapper, and companion skills (`$codex-compact-reload-setup`, `$codex-compact-reload-cleanup`).
+- **[Google Antigravity & Gemini (`harnesses/agy/`)](harnesses/agy/README.md):** Out-of-context hook protocol via `PreInvocation.injectSteps` and workspace instruction rules (`<RULE>`).
+- **[Claude Code (`harnesses/cc/`)](harnesses/cc/README.md):** Configuration for `hooks.post_compact` in `.claude/config.json` and persistent `CLAUDE.md` instructions.
+- **[Cursor (`harnesses/cursor/`)](harnesses/cursor/README.md):** Setup for `.cursor/rules/agents-reload.mdc` persistent rule.
+
+---
+
+## Division of Labor with Waymark
+
+Post-compaction continuity operates across two complementary bootloaders:
+
+```text
+               Context Compaction Occurs
+                          │
+          ┌───────────────┴───────────────┐
+          ▼                               ▼
+ [ AGENTS.md Compact Reload ]      [ waymark-compact-hook ]
+  Target: Root `AGENTS.md`          Target: `.waymark/active.json`
+  Role: Static behavioral rules     Role: Dynamic verified breadcrumbs
+  Output: Project authority & hash  Output: Hops & relocated line spans
+          │                               │
+          └───────────────┬───────────────┘
+                          ▼
+        Immediate Post-Compaction Continuation
+        (Full rules + Exact code breadcrumb trail)
+```
+
+1. **Static Project Governance ([AGENTS.md Compact Reload](https://github.com/paragon-ux/codex-agents-compact-reload)):** Reloads the root `AGENTS.md` and validates its SHA-256 hash. Ensures the agent never forgets its behavioral boundaries, test requirements, or safety invariants.
+2. **Dynamic In-Flight Trajectory ([Waymark](https://github.com/paragon-ux/waymark)):** Reloads the active `.waymark/` journal, verifies Git line anchors, detects relocated spans (`MOVED`), and injects the verified breadcrumb trail (<216 tokens).
+
+---
+
+## Multi-Project Registration
 
 Register several projects in one installation:
 
@@ -141,7 +136,9 @@ node scripts/install.mjs \
 
 On PowerShell, place the command on one line or use PowerShell's normal continuation syntax.
 
-## Privacy and trust boundary
+---
+
+## Privacy and Trust Boundary
 
 At runtime the hook reads only:
 
@@ -150,48 +147,82 @@ At runtime the hook reads only:
 - Git's observed repository root; and
 - the registered root's `AGENTS.md`.
 
-It does not read Codex session files, transcripts, prompts, tool results, environment-variable values, credentials, or task artifacts. It writes no runtime handoff or history files. See [Security](docs/SECURITY.md) for the complete boundary.
+It does not read agent session files, transcripts, prompts, tool results, environment-variable values, credentials, or task artifacts. It writes no runtime handoff or history files. See [Security](docs/SECURITY.md) for the complete boundary.
 
 `AGENTS.md` remains an instruction source, not evidence that work occurred. Claims about patches, tests, Git state, or external actions still require direct verification.
 
-## Verification evidence
+---
 
-The current automated suite covers:
+## Verification Evidence
 
+The current automated test suite covers:
+
+- multi-harness payload auto-detection (Codex, Antigravity, Markdown, JSON);
 - exact content and SHA-256 injection;
-- nested working directories;
+- nested working directories inside Git roots;
 - unregistered-project no-op behavior;
 - stale unrelated registration isolation and invalid selected-registration failure;
-- event filtering;
-- missing, empty, oversized, and invalid UTF-8 failures;
+- event filtering (ignoring non-compact SessionStart and unrelated events);
+- missing, empty, oversized, and invalid UTF-8 fail-closed behaviors;
 - installer preservation of unrelated hooks;
 - repeat-install idempotence;
-- installed-hook execution;
 - installer dry-run non-mutation;
 - partial deregistration; and
 - complete, recoverable uninstall without unrelated-hook loss.
 
-Run the exact suite with `npm run verify`. The initial release was exercised on Windows with Node.js 22 and Git for Windows. On Windows, the suite also invokes the installed quote-free handler through `cmd.exe`. A real Codex auto/manual compaction acceptance test remains a host-level verification step; follow the [host acceptance protocol](docs/HOST-ACCEPTANCE.md) before making the hook a hard dependency of a high-assurance workflow.
+Run the exact suite with:
 
-CI runs the same verification suite on Windows and Linux with Node.js 20, 22, and 24.
+```sh
+npm run verify
+```
 
-## Compatibility
+---
 
-The minimum supported stable release is Codex CLI 0.145.0, which contains the upstream immediate-delivery fix for compact `SessionStart` hooks. This project is tested with `codex-cli 0.147.0`; that remains the evidence-bound compatibility snapshot. Run the host acceptance protocol on the exact deployment build because version gating does not replace live timing evidence.
+## Repository Directory
 
-## Limitations
+```text
+codex-agents-compact-reload/
+├── .agents/skills/            # Companion skills for agent environments
+│   ├── codex-compact-reload-setup/    # Guided setup & host acceptance
+│   └── codex-compact-reload-cleanup/  # Scoped uninstaller skill
+├── assets/                    # Project iconography
+├── docs/                      # Technical architecture and protocols
+│   ├── ARCHITECTURE.md        # Lifecycle flow and security boundary
+│   ├── HOST-ACCEPTANCE.md     # Real-host manual & automatic compaction test
+│   ├── PUBLICATION.md         # Release history and provenance
+│   ├── SECURITY.md            # Threat model and privacy constraints
+│   ├── SUPPORT-TIERS.md       # Standardized 3-tier harness classification
+│   └── releases/              # Historical release notes (v0.1.0 – v0.2.0)
+├── harnesses/                 # Harness-specific recipes and deep-dives
+│   ├── README.md              # Harness directory index and tier matrix
+│   ├── codex/                 # OpenAI Codex integration details
+│   ├── cc/                    # Claude Code integration details
+│   ├── agy/                   # Google Antigravity integration details
+│   └── cursor/                # Cursor & Cursor Composer integration details
+├── scripts/                   # Management scripts
+│   ├── install.mjs            # Idempotent harness hook installer
+│   └── uninstall.mjs          # Scoped uninstaller and cleaner
+├── src/                       # Core runtime
+│   └── reload-agents.mjs      # Universal multi-harness compact bootloader
+└── test/                      # Node.js native test suite (13 automated tests)
+    ├── install.test.mjs       # Installer idempotence and preservation tests
+    ├── reload-agents.test.mjs # Multi-harness injection & fail-closed tests
+    └── uninstall.test.mjs     # Uninstaller tests
+```
 
-- This is continuity assistance, not an authenticated phase-authority system.
-- The source hash is reported but is not compared to an independently frozen expected hash.
-- The installer modifies the selected Codex home's `hooks.json` and requires explicit hook trust afterward.
-- Hook availability and event behavior still require host acceptance on the installed Codex version, even at or above the enforced minimum.
-- Only the root `AGENTS.md` is reloaded; nested instruction-chain files are outside this tool's promise.
+---
 
-See [Architecture](docs/ARCHITECTURE.md), [Rationale](Rationale.MD), [Security](docs/SECURITY.md), and the [Publication record](docs/PUBLICATION.md) for design, tradeoffs, and provenance details.
+## Documentation & Provenance
 
-## Design provenance
+- **[Support Tiers Guide](docs/SUPPORT-TIERS.md)**: 3-tier classification across Codex, Antigravity, Claude Code, Cursor.
+- **[Harness Integration Recipes](harnesses/README.md)**: Detailed recipes for Codex, Claude Code, Antigravity, and Cursor.
+- **[Architecture Deep-Dive](docs/ARCHITECTURE.md)**: Runtime lifecycle, security model, and failure semantics.
+- **[Design Rationale](Rationale.MD)**: Why compact reload instead of manual prompting or loops.
+- **[Host Acceptance Protocol](docs/HOST-ACCEPTANCE.md)**: Empirical compaction acceptance test protocol.
+- **[Security & Privacy Boundary](docs/SECURITY.md)**: Trust boundaries and read/write constraints.
+- **[Waymark In-Flight Continuity](https://github.com/paragon-ux/waymark)**: Companion in-flight continuity ledger for verified code breadcrumbs.
 
-The project was independently implemented from the required behavior and the inspected Codex hook contract. The project concept was informed by [codex-compact-continuity](https://github.com/Sakiyary/codex-compact-continuity), which addresses a broader continuity problem. Its AI-assisted installation and manual cleanup documentation also informed the decision to provide two narrow companion skills. No source code from that project is included here.
+---
 
 ## License
 
