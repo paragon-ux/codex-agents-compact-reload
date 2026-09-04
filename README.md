@@ -19,6 +19,7 @@ This small, dependency-free bootloader reloads the registered Git root's `AGENTS
 ## Table of Contents
 
 - [Why Use It?](#why-use-it)
+- [Cross-Repository Ecosystem](#cross-repository-ecosystem)
 - [Standardized 3-Tier Harness Model](#standardized-3-tier-harness-model)
 - [Quick Start](#quick-start)
 - [Supported Harnesses](#supported-harnesses)
@@ -28,6 +29,33 @@ This small, dependency-free bootloader reloads the registered Git root's `AGENTS
 - [Verification Evidence](#verification-evidence)
 - [Repository Directory](#repository-directory)
 - [Documentation & Provenance](#documentation--provenance)
+
+---
+
+## Cross-Repository Ecosystem
+
+This repository is part of an integrated, local-first multi-agent execution suite:
+
+### Internal Suite Repositories
+
+| Repository | Role & Responsibility | Core Invariant |
+| :--- | :--- | :--- |
+| **[`codex-agents-compact-reload`](https://github.com/paragon-ux/codex-agents-compact-reload)** | Static project governance & compaction survival. | Re-injects verified `AGENTS.md` and SHA-256 hash on context compaction. |
+| **[`Waymark`](https://github.com/paragon-ux/waymark)** | In-flight continuity ledger & AST discovery MCP. | Preserves verified code hops (`.waymark/`) across compactions (<216 tokens). |
+| **[`Arbiter`](https://github.com/paragon-ux/Arbiter)** | Multi-agent DAG orchestrator & worktree supervisor. | Enforces `1 Task : 1 Worktree : 1 Trajectory`; fail-closed merge quarantine. |
+
+> [!IMPORTANT]
+> **The 1:1:1 Invariant Contract**:
+> Every concurrent agent worker provisioned by **Arbiter** operates in exactly **one isolated Git worktree** and records exactly **one active Waymark trajectory**. Context compaction reloads static rules via **`codex-agents-compact-reload`** and in-flight hops via **`Waymark`** without mutating the task lease or crossing branch boundaries.
+
+### External Specifications
+
+| Specification | Canonical Reference | Usage in Suite |
+| :--- | :--- | :--- |
+| **Model Context Protocol (MCP)** | [Model Context Protocol Specification](https://github.com/modelcontextprotocol/specification) | Standardized JSON-RPC 2.0 stdio tool interface used across Waymark and Arbiter. |
+| **Tree-sitter WASM** | [Tree-sitter](https://github.com/tree-sitter/tree-sitter) | Polyglot AST grammars compiled to WebAssembly for zero-dependency symbol discovery. |
+| **Node.js Core Runtime** | [Node.js](https://github.com/nodejs/node) (v22+ LTS) | Native `node:sqlite`, `node:child_process`, `node:crypto`, `node:fs` (0 runtime npm dependencies). |
+| **Capn Memory Protocol** | Local specification | Finalized episodic memory storage, distinct from Waymark's in-flight trajectory ledger. |
 
 ---
 
