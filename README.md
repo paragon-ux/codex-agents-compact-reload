@@ -19,7 +19,6 @@ This small, dependency-free bootloader reloads the registered Git root's `AGENTS
 ## Table of Contents
 
 - [Why Use It?](#why-use-it)
-- [Cross-Repository Ecosystem](#cross-repository-ecosystem)
 - [Standardized 3-Tier Harness Model](#standardized-3-tier-harness-model)
 - [Quick Start](#quick-start)
 - [Supported Harnesses](#supported-harnesses)
@@ -29,36 +28,6 @@ This small, dependency-free bootloader reloads the registered Git root's `AGENTS
 - [Verification Evidence](#verification-evidence)
 - [Repository Directory](#repository-directory)
 - [Documentation & Provenance](#documentation--provenance)
-
----
-
-## Cross-Repository Ecosystem
-
-This repository operates as part of an integrated, local-first multi-agent execution suite:
-
-### Internal Suite Repositories
-
-| Repository | Scope & Responsibility | Interaction Boundary & Invariant |
-| :--- | :--- | :--- |
-| **[`codex-agents-compact-reload`](https://github.com/paragon-ux/codex-agents-compact-reload)** | Compaction survival & project instruction reloader. | Re-injects verified root `AGENTS.md` on harness context compaction; validates instruction hash. |
-| **[`Waymark`](https://github.com/paragon-ux/waymark)** | In-flight continuity ledger & WebAssembly AST discovery MCP. | Preserves verified code hops (`.waymark/`) across compactions; bounded resume (<216 tokens). |
-| **[`Arbiter`](https://github.com/paragon-ux/Arbiter)** | Multi-agent DAG orchestrator & ephemeral worktree supervisor. | Enforces `1 Task : 1 Worktree : 1 Trajectory`; isolates merge conflicts via rollback & quarantine. |
-| **`Trellis`** | Directed dependency primitives & graph execution. | Upstream graph scheduling patterns adapted by Arbiter's Kahn-algorithm DAG scheduler. |
-| **`Mosaic`** | Multi-surface workspace canvas & state composition. | Upstream workspace state model and layout primitives. |
-| **`Headlong`** *(Target)* | Persistent Recursive Language Model (RLM) agent harness. | Downstream consumer executing long-running agent workloads in Arbiter worktrees with Waymark. |
-
-> [!IMPORTANT]
-> **The 1:1:1 Invariant Contract**:
-> Every concurrent agent worker provisioned by **Arbiter** operates in exactly **one isolated Git worktree** and records exactly **one active Waymark trajectory**. Context compaction reloads static rules via **`codex-agents-compact-reload`** and in-flight hops via **`Waymark`** without mutating the task lease or crossing branch boundaries.
-
-### External Specifications
-
-| Specification | Canonical Reference | Usage in Suite |
-| :--- | :--- | :--- |
-| **Model Context Protocol (MCP)** | [Model Context Protocol Specification](https://github.com/modelcontextprotocol/specification) | Standardized JSON-RPC 2.0 stdio tool interface used by both Waymark and Arbiter. |
-| **Tree-sitter WASM** | [Tree-sitter](https://github.com/tree-sitter/tree-sitter) | Polyglot AST grammars compiled to WebAssembly for zero-dependency symbol discovery. |
-| **Node.js Core Runtime** | [Node.js](https://github.com/nodejs/node) (v22+ LTS) | Native `node:sqlite`, `node:child_process`, `node:crypto`, `node:fs` with 0 runtime npm dependencies. |
-| **Capn Memory Protocol** | Local specification | Finalized episodic memory storage, distinct from Waymark's active in-flight trajectory ledger. |
 
 ---
 
