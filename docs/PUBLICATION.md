@@ -42,6 +42,8 @@ On 2026-08-30, the `v0.1.3` candidate passed the 11-test automated suite and the
 
 On 2026-09-03, the `v0.2.0` candidate passed `npm run verify` with 13 of 13 tests, covering Codex, Antigravity, Markdown, and JSON payload contracts. The project was neutrally reframed to **AGENTS.md Compact Reload** across documentation, dedicated `harnesses/` guides were established for all major coding harnesses, and companion repository `Waymark` references were synchronized.
 
+On 2026-09-11, the `v0.3.0` candidate passed `npm run verify` with 24 of 24 tests, adding the Hermes Agent integration (`--target hermes`: compaction-gated `pre_llm_call` shell hook with a comment-preserving `config.yaml` installer and scoped uninstaller; `--plugin`: zero-pin in-process plugin using Hermes' own summary classifiers) and expanding harness tier documentation accordingly.
+
 ## Release decision
 
 `READY WITH DISCLOSED LIMITS` for public release under the MIT License. Automated, simulated-command, and multi-harness test suites are current; full automatic-compaction host acceptance remains unclaimed until the complete host protocol passes.

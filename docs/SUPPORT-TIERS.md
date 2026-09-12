@@ -16,9 +16,9 @@ To solve this, reload bootloaders provide deterministic re-injection of the regi
 
 | Support Tier | Mechanism | Delivery Guarantee | Target Harnesses |
 | :--- | :--- | :--- | :--- |
-| **Tier 1: Active Lifecycle Hook Injection** | Out-of-context process execution triggered by compaction or session boundary. | **100% deterministic.** Zero model tokens spent remembering to recover; instructions are prepended into the next turn before model invocation. | **OpenAI Codex** (`SessionStart` with `source: compact`), **Google Antigravity** (`PreInvocation.injectSteps`), **Claude Code** (`post_compact` hook script). |
-| **Tier 2: MCP Resource & Prompt Ingestion** | In-band Model Context Protocol primitives (`resources/read`, `prompts/get`). | **High reliability.** Protocol-standard pull; model accesses instructions via subscribed URIs or prompt commands. | **Claude Code**, **Cursor Composer**, **Windsurf**, **Cline**. |
-| **Tier 3: Persistent Prompt Directives** | Sticky system framing files surviving context window compactions. | **Best-effort.** Dependent on LLM instruction-following to call tools as step 1 when prior history is rolled. | **Cursor** (`.cursor/rules/*.mdc`), **Claude Code** (`CLAUDE.md`), **Antigravity** (`<RULE>` system blocks). |
+| **Tier 1: Active Lifecycle Hook Injection** | Out-of-context process execution triggered by compaction or session boundary. | **100% deterministic.** Zero model tokens spent remembering to recover; instructions are prepended into the next turn before model invocation. | **OpenAI Codex** (`SessionStart` with `source: compact`), **Google Antigravity** (`PreInvocation.injectSteps`), **Claude Code** (`post_compact` hook script), **Hermes Agent** (`pre_llm_call` shell hook, compaction-gated). |
+| **Tier 2: MCP Resource & Prompt Ingestion** | In-band Model Context Protocol primitives (`resources/read`, `prompts/get`). | **High reliability.** Protocol-standard pull; model accesses instructions via subscribed URIs or prompt commands. | **Claude Code**, **Cursor Composer**, **Windsurf**, **Cline**, **Hermes Agent** (native `mcp_servers`). |
+| **Tier 3: Persistent Prompt Directives** | Sticky system framing files surviving context window compactions. | **Best-effort.** Dependent on LLM instruction-following to call tools as step 1 when prior history is rolled. | **Cursor** (`.cursor/rules/*.mdc`), **Claude Code** (`CLAUDE.md`), **Antigravity** (`<RULE>` system blocks), **Hermes Agent** (`AGENTS.md` context-file loading). |
 
 ---
 
@@ -98,6 +98,36 @@ To solve this, reload bootloaders provide deterministic re-injection of the regi
   # Project Instructions Continuity
   When beginning a turn where prior conversation context has been compacted, re-read the root `AGENTS.md` before taking action.
   ```
+
+### E. Tier 1 & Tier 2: Hermes Agent
+
+- **Tier 1 (Shell Hook):** Registered in `<hermes-home>/config.yaml`:
+  ```yaml
+  hooks:
+    pre_llm_call:
+      - command: "node" "<path-to-hook>/src/reload-agents.mjs"
+        timeout: 15
+  ```
+  Hermes serializes the hook payload to stdin with the event name at
+  `hook_event_name` and turn context under `extra` (notably
+  `extra.user_message` and `extra.conversation_history`); the hook responds
+  `{"context": "..."}` — the shell-hook context-injection shape. Injection
+  fires only when the last user row is a compaction handoff (`[CONTEXT
+  COMPACTION — REFERENCE ONLY]…`, the no-user-turn continuation marker, the
+  `## Historical Task Snapshot` fallback, or a merged summary after
+  `[END OF PRIOR CONTEXT — COMPACTION SUMMARY BELOW]`) **and** no live user
+  message is present. First-use consent is recorded in
+  `~/.hermes/shell-hooks-allowlist.json` (or via `--accept-hooks` /
+  `HERMES_ACCEPT_HOOKS=1` / `hooks_auto_accept: true`).
+  Note: Hermes already rebuilds its system prompt at the compaction commit
+  boundary, re-reading `AGENTS.md` from disk (`agent/conversation_compression.py`,
+  `_rebuild_system_prompt_at_boundary`); the hook supplements that baseline with
+  an explicit hash-verified reload notice.
+- **Tier 2 (MCP):** Native client — add the Waymark server to `mcp_servers` in
+  `config.yaml` (see `harnesses/hermes/README.md`).
+- **Tier 3 (Context Files):** `AGENTS.md` (priority `.hermes.md` → `AGENTS.md`
+  → `CLAUDE.md` → `.cursorrules`) is loaded into the system prompt at session
+  start; the git-root chain and subdirectory files are discovered automatically.
 
 ---
 

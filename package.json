@@ -1,12 +1,12 @@
 {
   "name": "codex-agents-compact-reload",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Reload a registered project's AGENTS.md across AI agent harnesses immediately after context compaction.",
   "license": "MIT",
   "type": "module",
   "private": true,
   "scripts": {
-    "check": "node --check src/reload-agents.mjs && node --check scripts/install.mjs && node --check scripts/uninstall.mjs && node --check test/reload-agents.test.mjs && node --check test/install.test.mjs && node --check test/uninstall.test.mjs",
+    "check": "node --check src/reload-agents.mjs && node --check scripts/install.mjs && node --check scripts/uninstall.mjs && node --check test/reload-agents.test.mjs && node --check test/install.test.mjs && node --check test/uninstall.test.mjs && node --check test/hermes.test.mjs",
     "test": "node --test",
     "verify": "npm run check && npm test"
   },
@@ -21,6 +21,7 @@
     "continuity",
     "antigravity",
     "claude-code",
-    "cursor"
+    "cursor",
+    "hermes-agent"
   ]
 }

@@ -13,15 +13,22 @@ const SOURCE_HOOK = path.join(REPOSITORY_ROOT, "src", "reload-agents.mjs");
 export const INSTALL_DIRECTORY_NAME = "agents-compact-reload";
 export const MINIMUM_CODEX_VERSION = "0.145.0";
 export const COMPACT_DELIVERY_FIX_COMMIT = "8c41ed33ce3e39460e7b13b14c35e0c39bb5980d";
+export const HERMES_HOOK_TIMEOUT_SECONDS = 15;
 
 function usage() {
   return `Usage:
-  node scripts/install.mjs --project Name=<project-root> [options]
+  node scripts/install.mjs --target codex --project Name=<project-root> --codex-version <ver> [options]
+  node scripts/install.mjs --target hermes --project Name=<project-root> [options]
 
 Options:
+  --target <harness>     Installation target: codex (default) or hermes.
   --project Name=<path>  Register or update a project. Repeatable.
-  --codex-home <path>    Override CODEX_HOME for this installation.
-  --codex-version <ver>  Exact active Codex version (minimum ${MINIMUM_CODEX_VERSION}).
+  --codex-home <path>    Override CODEX_HOME for this installation. (codex)
+  --codex-version <ver>  Exact active Codex version (minimum ${MINIMUM_CODEX_VERSION}). (codex)
+  --hermes-home <path>   Override the Hermes home directory (default $HERMES_HOME or ~/.hermes). (hermes)
+  --plugin               (hermes) Install the zero-pin Python plugin instead of the
+                         config.yaml shell hook. Uses Hermes' own compaction
+                         classifiers; no hooks: entry or consent prompt.
   --node <path>          Node executable used by the hook.
   --dry-run              Print the proposed installation without writing.
   --help                 Show this help.
@@ -42,21 +49,33 @@ function parseAssignment(raw) {
 
 function parseArgs(argv) {
   const options = {
+    target: "codex",
     projects: [],
     codexHome: null,
     codexVersion: null,
+    hermesHome: null,
     nodePath: process.execPath,
     dryRun: false,
     help: false,
   };
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
-    if (argument === "--project") {
+    if (argument === "--target") {
+      const value = argv[++index];
+      if (value !== "codex" && value !== "hermes") {
+        throw new Error(`--target must be "codex" or "hermes"; got ${value}`);
+      }
+      options.target = value;
+    } else if (argument === "--project") {
       options.projects.push(parseAssignment(argv[++index]));
     } else if (argument === "--codex-home") {
       options.codexHome = argv[++index];
     } else if (argument === "--codex-version") {
       options.codexVersion = argv[++index];
+    } else if (argument === "--hermes-home") {
+      options.hermesHome = argv[++index];
+    } else if (argument === "--plugin") {
+      options.plugin = true;
     } else if (argument === "--node") {
       options.nodePath = argv[++index];
     } else if (argument === "--dry-run") {
@@ -65,6 +84,11 @@ function parseArgs(argv) {
       options.help = true;
     } else {
       throw new Error(`unknown argument: ${argument}`);
+    }
+  }
+  if (options.target === "codex") {
+    if (!options.codexVersion) {
+      throw new Error("--codex-version is required for the codex target");
     }
   }
   return options;
@@ -260,6 +284,279 @@ export function projectsArray(config) {
   return Array.isArray(config) ? config : Array.isArray(config?.projects) ? config.projects : [];
 }
 
+// --- Hermes config.yaml region editing (line-based, dependency-free) ---
+// Node ships no YAML parser, and a user's config.yaml may contain comments or
+// formatting that a parse/re-emit cycle would destroy. The merger therefore
+// performs line surgery: it only inserts/removes the `pre_llm_call` hook block
+// inside the top-level `hooks:` section and leaves every other byte verbatim.
+// It fails closed (with a manual-instructions error) on section shapes it does
+// not understand instead of guessing.
+
+function yamlDoubleQuoted(text) {
+  return `"${String(text).replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
+}
+
+export function hermesHookEntry(nodePath, installedHookPath) {
+  // Forward slashes: valid on Windows for Node and child processes, and they
+  // keep the YAML scalar free of backslash escapes.
+  const fwd = (value) => String(value).replaceAll("\\", "/");
+  return {
+    command: `${yamlDoubleQuoted(fwd(nodePath))} ${yamlDoubleQuoted(fwd(installedHookPath))}`,
+    timeout: HERMES_HOOK_TIMEOUT_SECONDS,
+  };
+}
+
+function hermesHookEntryLines(entry) {
+  return [
+    `    - command: ${entry.command}`,
+    `      timeout: ${entry.timeout}`,
+  ];
+}
+
+const HERMES_HOOK_TARGET_SEGMENT = "agents-compact-reload";
+
+function isHookEntryLine(line) {
+  return /^\s{4,}- command: /.test(line);
+}
+
+function findTopLevelSection(lines, key) {
+  const exact = lines.findIndex((line) => line === `${key}:`);
+  if (exact !== -1) {
+    return { start: exact, style: "block" };
+  }
+  const inline = lines.findIndex((line) => new RegExp(`^${key}: \\S`).test(line));
+  if (inline !== -1) {
+    return { start: inline, style: "inline" };
+  }
+  return null;
+}
+
+// End of a top-level section: the next non-blank, non-comment line at indent 0.
+function sectionEnd(lines, start) {
+  for (let index = start + 1; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (line.trim() === "" || line.trimStart().startsWith("#")) {
+      continue;
+    }
+    if (!line.startsWith(" ") && !line.startsWith("\t")) {
+      return index;
+    }
+  }
+  return lines.length;
+}
+
+function findPreLlmCall(lines, hooksStart, hooksEnd) {
+  for (let index = hooksStart + 1; index < hooksEnd; index += 1) {
+    if (lines[index] === "  pre_llm_call:") {
+      return index;
+    }
+  }
+  return -1;
+}
+
+// End of the `pre_llm_call:` list: the next non-blank line with indent <= 2.
+function listEnd(lines, start, hooksEnd) {
+  for (let index = start + 1; index < hooksEnd; index += 1) {
+    const line = lines[index];
+    if (line.trim() === "") {
+      continue;
+    }
+    if (/^\s{3}/.test(line)) {
+      continue;
+    }
+    return index;
+  }
+  return hooksEnd;
+}
+
+export function mergeHermesHooks(existingText, entry) {
+  const usesCrlf = existingText.includes("\r\n");
+  const newline = usesCrlf ? "\r\n" : "\n";
+  const lines = existingText ? existingText.split(/\r?\n/) : [];
+  if (lines.length > 0 && lines[lines.length - 1] === "") {
+    lines.pop(); // trailing newline becomes a join artifact
+  }
+  const hooksSection = findTopLevelSection(lines, "hooks");
+  const entryLines = hermesHookEntryLines(entry);
+
+  if (!hooksSection) {
+    lines.push("hooks:", "  pre_llm_call:", ...entryLines);
+    return lines.join(newline) + newline;
+  }
+  if (hooksSection.style === "inline") {
+    throw new Error(
+      "existing config.yaml uses an inline `hooks:` value; add the pre_llm_call hook manually (see harnesses/hermes/README.md)",
+    );
+  }
+  const hooksEnd = sectionEnd(lines, hooksSection.start);
+  const preIndex = findPreLlmCall(lines, hooksSection.start, hooksEnd);
+  if (preIndex === -1) {
+    lines.splice(hooksSection.start + 1, 0, "  pre_llm_call:", ...entryLines);
+    return lines.join(newline) + newline;
+  }
+  const blockEnd = listEnd(lines, preIndex, hooksEnd);
+  const block = lines.slice(preIndex + 1, blockEnd);
+  if (block.some((line) => line.includes("reload-agents.mjs"))) {
+    return lines.join(newline) + newline; // already registered — idempotent no-op
+  }
+  if (block.some((line) => /[|>]/.test(line) && /\s[|>]\s*$/.test(line))) {
+    throw new Error(
+      "existing `hooks.pre_llm_call` contains block scalars this installer cannot parse; add the hook manually (see harnesses/hermes/README.md)",
+    );
+  }
+  // Append after the last existing list item (or directly under the key).
+  let insertAt = preIndex + 1;
+  for (let index = preIndex + 1; index < blockEnd; index += 1) {
+    if (isHookEntryLine(lines[index]) || /^\s{5,}/.test(lines[index])) {
+      insertAt = index + 1;
+    }
+  }
+  lines.splice(insertAt, 0, ...entryLines);
+  return lines.join(newline) + newline;
+}
+
+export function removeHermesHookEntry(existingText, installedHookPath) {
+  const usesCrlf = existingText.includes("\r\n");
+  const newline = usesCrlf ? "\r\n" : "\n";
+  const lines = existingText ? existingText.split(/\r?\n/) : [];
+  if (lines.length > 0 && lines[lines.length - 1] === "") {
+    lines.pop();
+  }
+  const hooksSection = findTopLevelSection(lines, "hooks");
+  if (!hooksSection || hooksSection.style !== "block") {
+    return { text: existingText, removedEntries: 0 };
+  }
+  const hooksEnd = sectionEnd(lines, hooksSection.start);
+  const preIndex = findPreLlmCall(lines, hooksSection.start, hooksEnd);
+  if (preIndex === -1) {
+    return { text: existingText, removedEntries: 0 };
+  }
+  const blockEnd = listEnd(lines, preIndex, hooksEnd);
+  // Collect [start, end) ranges of list items mentioning the installed hook.
+  const ranges = [];
+  for (let index = preIndex + 1; index < blockEnd; index += 1) {
+    if (isHookEntryLine(lines[index]) && lines[index].includes(path.basename(installedHookPath))
+      && lines[index].includes(HERMES_HOOK_TARGET_SEGMENT)) {
+      let end = index + 1;
+      while (end < blockEnd && (/^\s{6,}/.test(lines[end]) || lines[end].trim() === "")) {
+        if (isHookEntryLine(lines[end])) {
+          break;
+        }
+        end += 1;
+      }
+      while (end > index + 1 && lines[end - 1].trim() === "") {
+        end -= 1;
+      }
+      ranges.push([index, end]);
+      index = end - 1;
+    }
+  }
+  if (ranges.length === 0) {
+    return { text: existingText, removedEntries: 0 };
+  }
+  for (let range = ranges.length - 1; range >= 0; range -= 1) {
+    lines.splice(ranges[range][0], ranges[range][1] - ranges[range][0]);
+  }
+  const preAfter = findPreLlmCall(lines, hooksSection.start, lines.length);
+  if (preAfter !== -1 && listEnd(lines, preAfter, lines.length) === preAfter + 1) {
+    lines.splice(preAfter, 1); // list is empty — drop the key too
+  }
+  return { text: lines.join(newline) + newline, removedEntries: ranges.length };
+}
+
+export function hermesHomeDir(hermesHomeOverride) {
+  if (hermesHomeOverride) {
+    return canonicalDirectory(hermesHomeOverride, "--hermes-home");
+  }
+  if (process.env.HERMES_HOME && process.env.HERMES_HOME.trim()) {
+    return canonicalDirectory(process.env.HERMES_HOME, "HERMES_HOME");
+  }
+  return path.join(os.homedir(), ".hermes");
+}
+
+function hermesInstallationPlan(options) {
+  if (options.projects.length === 0) {
+    throw new Error("at least one --project is required");
+  }
+  const projects = options.projects.map(validateProject);
+  const hermesHome = hermesHomeDir(options.hermesHome);
+  const nodePath = fs.realpathSync.native(path.resolve(options.nodePath));
+  const installDirectory = path.join(hermesHome, "hooks", INSTALL_DIRECTORY_NAME);
+  const installedHookPath = path.join(installDirectory, "reload-agents.mjs");
+  const projectsPath = path.join(installDirectory, "projects.json");
+  const configPath = path.join(hermesHome, "config.yaml");
+  const entry = hermesHookEntry(nodePath, installedHookPath);
+  return {
+    target: "hermes",
+    plugin: Boolean(options.plugin),
+    hermesHome,
+    nodePath,
+    installDirectory,
+    installedHookPath,
+    projectsPath,
+    configPath,
+    entry,
+    projects: projects.map(({ name, root }) => ({ name, root })),
+    projectsConfig: mergeProjects(readJson(projectsPath, { projects: [] }), projects, null),
+  };
+}
+
+function installHermes(plan, dryRun) {
+  // Plugin mode installs into $HERMES_HOME/plugins/<name>/ (Hermes' user-plugin
+  // discovery root — each plugin is its own subdirectory with __init__.py), plus
+  // the shared hook/projects copy under hooks/agents-compact-reload/.
+  const pluginDirectory = path.join(plan.hermesHome, "plugins", INSTALL_DIRECTORY_NAME);
+  if (dryRun) {
+    process.stdout.write(`${JSON.stringify({
+      target: "hermes",
+      mode: plan.plugin ? "plugin" : "shell-hook",
+      hermes_home: plan.hermesHome,
+      plugin_path: pluginDirectory,
+      hook_path: plan.installedHookPath,
+      projects_path: plan.projectsPath,
+      config_path: plan.configPath,
+      hook_entry: plan.entry,
+      projects: plan.projects,
+    }, null, 2)}\n`);
+    return;
+  }
+  fs.mkdirSync(plan.installDirectory, { recursive: true });
+  fs.copyFileSync(SOURCE_HOOK, plan.installedHookPath);
+  writeJsonAtomic(plan.projectsPath, plan.projectsConfig);
+  if (plan.plugin) {
+    // Zero-pin plugin mode: install the Python plugin that detects compaction via
+    // Hermes' own classifiers (no marker pins). No config.yaml hook entry is
+    // written; plugins load without the shell-hook consent prompt. The plugin
+    // reads projects.json from the shared install directory.
+    const pluginSource = path.join(REPOSITORY_ROOT, "harnesses", "hermes", "plugin");
+    fs.mkdirSync(pluginDirectory, { recursive: true });
+    for (const name of ["__init__.py", "plugin.yaml"]) {
+      fs.copyFileSync(path.join(pluginSource, name), path.join(pluginDirectory, name));
+    }
+    process.stdout.write("Installed AGENTS.md compact reload plugin for Hermes Agent (zero-pin mode).\n");
+    process.stdout.write(`Plugin: ${pluginDirectory}\n`);
+    process.stdout.write(`Projects: ${plan.projectsPath}\n`);
+    process.stdout.write("Restart Hermes so the plugin registers (user plugins load from ~/.hermes/plugins/<name>/).\n");
+    return;
+  }
+  const existingConfig = fs.existsSync(plan.configPath) ? fs.readFileSync(plan.configPath, "utf8") : "";
+  const nextConfig = mergeHermesHooks(existingConfig, plan.entry);
+  const backupPath = `${plan.configPath}.bak-agents-compact-reload-${new Date().toISOString().replace(/[-:.]/g, "").replace("T", "-")}`;
+  if (fs.existsSync(plan.configPath)) {
+    fs.copyFileSync(plan.configPath, backupPath);
+  }
+  fs.writeFileSync(plan.configPath, nextConfig, "utf8");
+  process.stdout.write("Installed AGENTS.md compact reload hook for Hermes Agent.\n");
+  process.stdout.write(`Hook: ${plan.installedHookPath}\n`);
+  process.stdout.write(`Projects: ${plan.projectsPath}\n`);
+  process.stdout.write(`Config: ${plan.configPath}\n`);
+  if (fs.existsSync(backupPath)) {
+    process.stdout.write(`Backup: ${backupPath}\n`);
+  }
+  process.stdout.write("Approve the (pre_llm_call, node) hook pair on first use, or run `hermes --accept-hooks`, or set hooks_auto_accept: true in config.yaml.\n");
+  process.stdout.write("Restart Hermes so the hook registers.\n");
+}
+
 function mergeProjects(existingConfig, incomingProjects, codexVersion) {
   const merged = new Map();
   for (const project of projectsArray(existingConfig)) {
@@ -331,6 +628,9 @@ function mergeHooks(existingConfig, command, commandWindows, installedHookPath) 
 }
 
 export function installationPlan(options) {
+  if (options.target === "hermes") {
+    return hermesInstallationPlan(options);
+  }
   if (options.projects.length === 0) {
     throw new Error("at least one --project is required");
   }
@@ -365,6 +665,10 @@ export function installationPlan(options) {
 
 function install(options) {
   const plan = installationPlan(options);
+  if (plan.target === "hermes") {
+    installHermes(plan, options.dryRun);
+    return;
+  }
   if (options.dryRun) {
     process.stdout.write(`${JSON.stringify({
       codex_home: plan.codexHome,

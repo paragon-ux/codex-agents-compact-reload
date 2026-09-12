@@ -13,6 +13,20 @@ const SCRIPT_DIR = path.dirname(SCRIPT_PATH);
 const DEFAULT_PROJECTS_PATH = path.join(SCRIPT_DIR, "projects.json");
 const DEFAULT_MAX_BYTES = 32 * 1024;
 
+// Hermes compaction markers (agent/context_compressor.py). The summary handoff is a
+// role="user" row starting with one of these prefixes; content markers are byte-pinned
+// upstream ("NEVER edit/reorder entries"). Matched exactly so ordinary turns never fire.
+const HERMES_SUMMARY_PREFIXES = [
+  "[CONTEXT COMPACTION",
+  "[CONTEXT SUMMARY]:",
+];
+const HERMES_MERGED_SUMMARY_DELIMITER = "[END OF PRIOR CONTEXT — COMPACTION SUMMARY BELOW]";
+const HERMES_CONTINUATION_MARKERS = [
+  "Continue from the compressed conversation context above. This marker exists because no human user turn was available.",
+  "Continue from the compressed conversation context above. This marker exists because the compacted transcript contained no preserved user turn.",
+];
+const HERMES_SUMMARY_HEADING = "## Historical Task Snapshot";
+
 function jsonOut(value = {}) {
   process.stdout.write(`${JSON.stringify(value)}\n`);
 }
@@ -81,6 +95,135 @@ function configuredRoot(value, label) {
 function isInside(root, candidate) {
   const relative = path.relative(root, candidate);
   return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+// Compaction boundary detection for Hermes pre_llm_call payloads.
+//
+// Hermes compacts at TURN START: the immediate post-compaction turn usually
+// carries a live user message AFTER the summary row, so a live user message
+// does NOT mean the summary is stale. The correct semantics are "fire on the
+// first turn whose history contains a compaction handoff, then dedupe":
+// `session_id` + the summary row's identity (content hash when metadata was
+// stripped, otherwise the row's index) are memoized in a state file so the
+// persisting summary row does not re-trigger on every subsequent turn.
+function isHermesCompaction(payload) {
+  if (!payload || typeof payload !== "object" || payload.hook_event_name !== "pre_llm_call") {
+    return null;
+  }
+  const extra = payload.extra && typeof payload.extra === "object" ? payload.extra : {};
+  const history = Array.isArray(extra.conversation_history) ? extra.conversation_history : [];
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index];
+    if (!message || typeof message !== "object") {
+      continue;
+    }
+    // Primary signal: the in-process summary flag (agent/context_compressor.py
+    // stamps `_compressed_summary` on the handoff row unconditionally at the
+    // compaction boundary; content-independent, survives hook stdin
+    // serialization). Verified against Hermes 0.21.2.
+    if (message._compressed_summary) {
+      return { summaryRow: message, history };
+    }
+    // Fallback signal: byte-pinned content markers, for rows that passed through a
+    // wire sanitizer or session-store round-trip that drops "_"-prefixed metadata.
+    if (message.role !== "user") {
+      continue;
+    }
+    const content = message.content;
+    const text = typeof content === "string"
+      ? content
+      : Array.isArray(content)
+        ? content
+            .map((part) => (part && typeof part === "object" && typeof part.text === "string" ? part.text : ""))
+            .join("\n")
+        : "";
+    if (HERMES_SUMMARY_PREFIXES.some((prefix) => text.startsWith(prefix))) {
+      return { summaryRow: message, history };
+    }
+    if (text.includes(HERMES_MERGED_SUMMARY_DELIMITER)) {
+      const after = text.split(HERMES_MERGED_SUMMARY_DELIMITER, 2)[1] || "";
+      if (HERMES_SUMMARY_PREFIXES.some((prefix) => after.trimStart().startsWith(prefix))) {
+        return { summaryRow: message, history };
+      }
+    }
+    if (HERMES_CONTINUATION_MARKERS.some((marker) => text.startsWith(marker))) {
+      return { summaryRow: message, history };
+    }
+    if (text.startsWith(HERMES_SUMMARY_HEADING)) {
+      return { summaryRow: message, history };
+    }
+  }
+  return null;
+}
+
+// Identity of the handoff row for dedupe across turns: prefer stable in-process
+// metadata; otherwise hash the row content (upstream rewording changes this hash,
+// which is fine — a different summary is a different compaction).
+function summaryRowIdentity(summaryRow) {
+  if (summaryRow._compressed_summary) {
+    return "metadata";
+  }
+  const content = summaryRow.content;
+  const text = typeof content === "string"
+    ? content
+    : Array.isArray(content)
+      ? content.map((part) => (part && typeof part === "object" && typeof part.text === "string" ? part.text : "")).join("\n")
+      : "";
+  return crypto.createHash("sha256").update(text).digest("hex").slice(0, 16);
+}
+
+const DEDUPE_FILENAME = "hermes-compact-reload-state.json";
+
+function loadDedupeState(configPath) {
+  try {
+    const raw = fs.readFileSync(path.join(path.dirname(configPath), DEDUPE_FILENAME), "utf8");
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveDedupeState(configPath, state) {
+  try {
+    fs.writeFileSync(
+      path.join(path.dirname(configPath), DEDUPE_FILENAME),
+      `${JSON.stringify(state, null, 2)}\n`,
+      "utf8",
+    );
+  } catch {
+    // Dedupe is best-effort: a failed write only means a possible duplicate
+    // injection, never a missed one.
+  }
+}
+
+export function hermesReloadDecision(payload, options = {}) {
+  const detected = isHermesCompaction(payload);
+  if (!detected) {
+    return { fire: false, reason: "not-a-compaction-turn" };
+  }
+  if (typeof payload.session_id !== "string" || payload.session_id.length === 0) {
+    // Without a session id there is nothing to dedupe against; fire (the gate
+    // above still guarantees this is a compaction turn).
+    return { fire: true, reason: "no-session-id" };
+  }
+  const configPath = path.resolve(
+    options.projectsPath
+      || process.env.AGENTS_COMPACT_RELOAD_PROJECTS_FILE
+      || DEFAULT_PROJECTS_PATH,
+  );
+  const key = `${payload.session_id}:${summaryRowIdentity(detected.summaryRow)}`;
+  const state = options.dedupeState || loadDedupeState(configPath);
+  const now = Date.now();
+  const fired = typeof state[key] === "number" ? state[key] : 0;
+  if (fired && now - fired < 12 * 60 * 60 * 1000) {
+    return { fire: false, reason: "already-reloaded" };
+  }
+  if (!options.dedupeState) {
+    state[key] = now;
+    saveDedupeState(configPath, state);
+  }
+  return { fire: true, reason: "compaction-handoff" };
 }
 
 function gitRoot(cwd) {
@@ -174,7 +317,18 @@ export function buildHookOutput(payload, options = {}) {
   let format = options.format;
   let rawCwd = payload?.cwd;
 
-  if (payload?.hook_event_name) {
+  if (payload?.hook_event_name === "pre_llm_call") {
+    if (!options.format) format = "hermes";
+    if (options.requireCompaction !== false) {
+      const decision = hermesReloadDecision(payload, {
+        projectsPath: options.projectsPath,
+        dedupeState: options.dedupeState,
+      });
+      if (!decision.fire) {
+        return {};
+      }
+    }
+  } else if (payload?.hook_event_name) {
     if (payload.hook_event_name !== "SessionStart" || payload.source !== "compact") {
       return {};
     }
@@ -237,6 +391,14 @@ export function buildHookOutput(payload, options = {}) {
     };
   }
 
+  if (format === "hermes") {
+    // Hermes shell hooks parse stdout as JSON; {"context": ...} is the documented
+    // context-injection shape (agent/shell_hooks.py `_parse_context`).
+    return {
+      context,
+    };
+  }
+
   if (format === "json") {
     return {
       project: project.name,
@@ -271,7 +433,7 @@ async function main() {
   try {
     const raw = await readStdin();
     if (!raw.trim()) {
-      if (flags.format === "markdown" || flags.format === "json") {
+      if (flags.format === "markdown" || flags.format === "json" || flags.format === "hermes") {
         const output = buildHookOutput({}, { format: flags.format, cwd: flags.customCwd, projectsPath: flags.projectsPath });
         if (flags.format === "markdown") {
           process.stdout.write(`${output.context || ""}\n`);

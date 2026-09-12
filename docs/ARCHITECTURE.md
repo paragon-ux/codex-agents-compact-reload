@@ -2,7 +2,7 @@
 
 ## Public promise
 
-For an explicitly registered Git repository, inject the exact root `AGENTS.md` text into the immediate post-compaction continuation across AI agent harnesses (OpenAI Codex, Google Antigravity, Claude Code, Cursor) without reading or persisting the surrounding conversation.
+For an explicitly registered Git repository, inject the exact root `AGENTS.md` text into the immediate post-compaction continuation across AI agent harnesses (OpenAI Codex, Google Antigravity, Claude Code, Cursor, Hermes Agent) without reading or persisting the surrounding conversation.
 
 ## Components
 

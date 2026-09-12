@@ -12,6 +12,7 @@ This directory contains integration guides and configuration recipes for AI codi
 | **Google Antigravity** | [`agy/`](agy/README.md) | **Tier 1** | `PreInvocation.injectSteps` protocol | 100% deterministic out-of-context hook |
 | **Claude Code** | [`cc/`](cc/README.md) | **Tier 1 & Tier 3** | `post_compact` hook script & `CLAUDE.md` directive | Deterministic hook with persistent fallback |
 | **Cursor** | [`cursor/`](cursor/README.md) | **Tier 3** | `.cursor/rules/agents-reload.mdc` | Persistent system prompt rule |
+| **Hermes Agent** | [`hermes/`](hermes/README.md) | **Tier 1 & Tier 2** | `pre_llm_call` shell hook via `config.yaml` & native `mcp_servers` | Deterministic compaction-gated injection with native MCP + context-file baseline |
 
 ---
 
@@ -21,3 +22,4 @@ This directory contains integration guides and configuration recipes for AI codi
 - **[Google Antigravity Integration](agy/README.md)**: `PreInvocation` input/output contract and `<RULE>` system prompt integration.
 - **[Claude Code Integration](cc/README.md)**: `.claude/config.json` post-compact hook and `CLAUDE.md` instructions.
 - **[Cursor Integration](cursor/README.md)**: `.cursor/rules/agents-reload.mdc` configuration.
+- **[Hermes Agent Integration](hermes/README.md)**: `pre_llm_call` shell hook in `config.yaml`, compaction-marker gate, consent allowlist, and native MCP pairing.

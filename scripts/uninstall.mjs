@@ -8,8 +8,11 @@ import { fileURLToPath } from "node:url";
 
 import {
   INSTALL_DIRECTORY_NAME,
+  hermesHomeDir,
+  hermesHookEntry,
   projectsArray,
   readJson,
+  removeHermesHookEntry,
   removeHookHandlers,
   writeJsonAtomic,
 } from "./install.mjs";
@@ -22,9 +25,11 @@ function usage() {
   node scripts/uninstall.mjs --all [options]
 
 Options:
+  --target <harness>     Installation target: codex (default) or hermes.
   --project <name>       Remove one registered project. Repeatable.
   --all                  Remove every registration and this hook installation.
-  --codex-home <path>    Override CODEX_HOME for this cleanup.
+  --codex-home <path>    Override CODEX_HOME for this cleanup. (codex)
+  --hermes-home <path>   Override the Hermes home directory (default $HERMES_HOME or ~/.hermes). (hermes)
   --dry-run              Print the proposed cleanup without writing or deleting.
   --help                 Show this help.
 `;
@@ -32,15 +37,23 @@ Options:
 
 function parseArgs(argv) {
   const options = {
+    target: "codex",
     projects: [],
     all: false,
     codexHome: null,
+    hermesHome: null,
     dryRun: false,
     help: false,
   };
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
-    if (argument === "--project") {
+    if (argument === "--target") {
+      const value = argv[++index];
+      if (value !== "codex" && value !== "hermes") {
+        throw new Error(`--target must be "codex" or "hermes"; got ${value}`);
+      }
+      options.target = value;
+    } else if (argument === "--project") {
       const name = argv[++index];
       if (!name || !name.trim()) {
         throw new Error("--project requires a nonempty registered project name");
@@ -52,6 +65,11 @@ function parseArgs(argv) {
       options.codexHome = argv[++index];
       if (!options.codexHome) {
         throw new Error("--codex-home requires a path");
+      }
+    } else if (argument === "--hermes-home") {
+      options.hermesHome = argv[++index];
+      if (!options.hermesHome) {
+        throw new Error("--hermes-home requires a path");
       }
     } else if (argument === "--dry-run") {
       options.dryRun = true;
@@ -79,6 +97,94 @@ function configWithProjects(config, projects) {
 function backupPath(hooksPath) {
   const stamp = new Date().toISOString().replace(/[-:.]/g, "").replace("T", "-");
   return `${hooksPath}.bak-agents-compact-reload-${stamp}`;
+}
+
+// --- Hermes target ---
+
+function hermesUninstallationPlan(options) {
+  const hermesHome = hermesHomeDir(options.hermesHome);
+  const installDirectory = path.join(hermesHome, "hooks", INSTALL_DIRECTORY_NAME);
+  const installedHookPath = path.join(installDirectory, "reload-agents.mjs");
+  const projectsPath = path.join(installDirectory, "projects.json");
+  const configPath = path.join(hermesHome, "config.yaml");
+  const projectsConfig = readJson(projectsPath, { projects: [] });
+  const projects = projectsArray(projectsConfig);
+  const requestedNames = [...new Set(options.projects)];
+  if (!options.all) {
+    const knownNames = new Set(projects.map((project) => project?.name).filter((name) => typeof name === "string"));
+    const missingNames = requestedNames.filter((name) => !knownNames.has(name));
+    if (missingNames.length > 0) {
+      throw new Error(`registered project not found: ${missingNames.join(", ")}`);
+    }
+  }
+  const removedProjects = options.all
+    ? projects
+    : projects.filter((project) => requestedNames.includes(project?.name));
+  const remainingProjects = options.all
+    ? []
+    : projects.filter((project) => !requestedNames.includes(project?.name));
+  const nodePath = fs.realpathSync.native(path.resolve(process.execPath));
+  const command = hermesHookEntry(nodePath, installedHookPath).command;
+  const hookRemoval = removeHermesHookEntry(
+    fs.existsSync(configPath) ? fs.readFileSync(configPath, "utf8") : "",
+    installedHookPath,
+  );
+  const removeInstallation = options.all || remainingProjects.length === 0;
+  return {
+    target: "hermes",
+    hermesHome,
+    installDirectory,
+    installedHookPath,
+    projectsPath,
+    configPath,
+    projectsConfig,
+    nextProjectsConfig: configWithProjects(projectsConfig, remainingProjects),
+    nextConfig: hookRemoval.text,
+    hookEntriesToRemove: removeInstallation ? hookRemoval.removedEntries : 0,
+    removedProjects,
+    remainingProjects,
+    removeInstallation,
+  };
+}
+
+function hermesPublicPlan(plan) {
+  return {
+    target: "hermes",
+    hermes_home: plan.hermesHome,
+    mode: plan.removeInstallation ? "remove-installation" : "remove-registrations",
+    removed_projects: plan.removedProjects.map((project) => project.name),
+    remaining_projects: plan.remainingProjects.map((project) => project.name),
+    hook_entries_to_remove: plan.hookEntriesToRemove,
+    install_directory: plan.installDirectory,
+    projects_path: plan.projectsPath,
+    config_path: plan.configPath,
+  };
+}
+
+function uninstallHermes(options) {
+  const plan = hermesUninstallationPlan(options);
+  if (options.dryRun) {
+    process.stdout.write(`${JSON.stringify(hermesPublicPlan(plan), null, 2)}\n`);
+    return;
+  }
+  let configBackup = null;
+  if (plan.removeInstallation) {
+    if (fs.existsSync(plan.configPath) && plan.hookEntriesToRemove > 0) {
+      configBackup = backupPath(plan.configPath);
+      fs.copyFileSync(plan.configPath, configBackup);
+      fs.writeFileSync(plan.configPath, plan.nextConfig, "utf8");
+    }
+    if (fs.existsSync(plan.installDirectory)) {
+      fs.rmSync(plan.installDirectory, { recursive: true, force: false });
+    }
+  } else {
+    writeJsonAtomic(plan.projectsPath, plan.nextProjectsConfig);
+  }
+  process.stdout.write(`${JSON.stringify({
+    ...hermesPublicPlan(plan),
+    config_backup: configBackup,
+    completed: true,
+  }, null, 2)}\n`);
 }
 
 export function uninstallationPlan(options) {
@@ -139,6 +245,10 @@ function publicPlan(plan) {
 }
 
 function uninstall(options) {
+  if (options.target === "hermes") {
+    uninstallHermes(options);
+    return;
+  }
   const plan = uninstallationPlan(options);
   if (options.dryRun) {
     process.stdout.write(`${JSON.stringify(publicPlan(plan), null, 2)}\n`);

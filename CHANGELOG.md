@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0 - 2026-09-11
+
+- Added **Hermes Agent** support (Tier 1 & Tier 2): `node scripts/install.mjs --target hermes` registers a compaction-gated `pre_llm_call` shell hook in `~/.hermes/config.yaml`; `node scripts/uninstall.mjs --target hermes` removes it.
+- The Hermes hook fires only when the `pre_llm_call` payload's conversation history ends in a Hermes compaction handoff **and** no live user message is pending; ordinary turns return `{}`.
+- **Drift-resistant detection:** the primary signal is Hermes' in-process `_compressed_summary` row metadata (content-independent, survives hook stdin serialization); the byte-pinned summary markers remain only as a fallback for sanitizer/session-store round-trips. `--plugin` mode eliminates the pins entirely by calling Hermes' own classifiers in-process.
+- Added `node scripts/install.mjs --target hermes --plugin`: installs a Hermes plugin (`harnesses/hermes/plugin/`) that reuses `is_compaction_summary_message` — zero marker pins, no consent prompt, no config.yaml edit.
+- Added a dependency-free line-surgery YAML editor for `config.yaml` that preserves comments, unrelated sections, and CRLF line endings, backs up before writing, and fails closed on unsupported shapes (inline `hooks:`, block scalars).
+- Documented the Hermes compaction baseline: Hermes rebuilds its system prompt at the compaction boundary and re-reads `AGENTS.md` from disk; the hook supplements this with an explicit hash-verified reload notice.
+- Test suite expanded to 24 automated tests (`test/hermes.test.mjs`).
+
 ## 0.2.0 - 2026-09-03
 
 - Reframed project provenance to **AGENTS.md Compact Reload** across AI coding agent harnesses.
