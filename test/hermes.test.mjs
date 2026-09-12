@@ -168,9 +168,14 @@ test("hermes uninstaller preserves foreign pre_llm_call entries", () => {
   assert.ok(!config.includes("reload-agents.mjs"), "own hook removed");
 });
 
+
 test("hermes --plugin mode installs the zero-pin plugin without touching config.yaml", () => {
   const projectRoot = makeProject();
-  const hermesHome = fs.mkdtempSync(path.join(os.tmpdir(), "agents-hermes-home-"));
+  // os.tmpdir() can return the Windows 8.3 short form (e.g. C:\Users\RUNNER~1\...)
+  // while the installer canonicalizes --hermes-home through fs.realpathSync.native,
+  // yielding the long form. Canonicalize the fixture the same way so the
+  // comparison is between like representations on every host.
+  const hermesHome = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), "agents-hermes-home-")));
   const args = ["--target", "hermes", "--plugin", "--project", `demo=${projectRoot}`, "--hermes-home", hermesHome];
 
   const dryRun = runInstaller([...args, "--dry-run"]);
@@ -183,7 +188,6 @@ test("hermes --plugin mode installs the zero-pin plugin without touching config.
 
   const install = runInstaller(args);
   assert.equal(install.status, 0, install.stderr);
-
   const pluginDirectory = path.join(hermesHome, "plugins", "agents-compact-reload");
   assert.ok(fs.existsSync(path.join(pluginDirectory, "__init__.py")));
   assert.ok(fs.existsSync(path.join(pluginDirectory, "plugin.yaml")));
