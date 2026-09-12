@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -282,7 +283,24 @@ test("hermes runtime hook injects AGENTS.md exactly when the last user row is a 
   );
 
   // Second turn with the SAME summary in the same session -> deduped no-op.
-  assert.deepEqual(buildHookOutput(liveUser, { projectsPath: configPath, dedupeState: { "test-session:metadata": Date.now() } }), {});
+  // The dedupe identity is the summary-row content hash; derive the key the
+  // same way the hook does instead of pinning a legacy constant.
+  const flaggedRowText = "kept tail";
+  const flaggedHash = crypto.createHash("sha256").update(flaggedRowText).digest("hex").slice(0, 16);
+  assert.deepEqual(
+    buildHookOutput(liveUser, { projectsPath: configPath, dedupeState: { [`test-session:${flaggedHash}`]: Date.now() } }),
+    {},
+  );
+
+  // SAME session, DIFFERENT summary content (still metadata-flagged) -> fires
+  // again: distinct compactions must stay distinct events within the TTL.
+  const secondCompaction = structuredClone(liveUser);
+  secondCompaction.extra.conversation_history = [
+    { role: "user", content: "a NEW compaction summary", _compressed_summary: true },
+  ];
+  assert.ok(
+    typeof buildHookOutput({ ...secondCompaction, session_id: "test-session" }, { projectsPath: configPath, dedupeState: { [`test-session:${flaggedHash}`]: Date.now() } }).context === "string",
+  );
 
   // Ordinary conversation without compaction signals: no-op.
   const ordinary = structuredClone(base);

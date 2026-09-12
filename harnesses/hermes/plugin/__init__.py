@@ -108,8 +108,7 @@ def register(ctx) -> None:
             if boundary is None:
                 return None
             session_id = str(kwargs.get("session_id") or "")
-            key = (session_id, id(boundary) if boundary.get("_compressed_summary")
-                   else _summary_identity(boundary))
+            key = (session_id, _summary_identity(boundary))
             if not _should_fire(key):
                 return None
             cwd = os.getcwd()

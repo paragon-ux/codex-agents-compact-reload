@@ -103,9 +103,9 @@ function isInside(root, candidate) {
 // carries a live user message AFTER the summary row, so a live user message
 // does NOT mean the summary is stale. The correct semantics are "fire on the
 // first turn whose history contains a compaction handoff, then dedupe":
-// `session_id` + the summary row's identity (content hash when metadata was
-// stripped, otherwise the row's index) are memoized in a state file so the
-// persisting summary row does not re-trigger on every subsequent turn.
+// `session_id` + the summary row's content hash are memoized in a state file
+// so the persisting summary row does not re-trigger on every subsequent turn,
+// while two DIFFERENT compactions in one session remain distinct events.
 function isHermesCompaction(payload) {
   if (!payload || typeof payload !== "object" || payload.hook_event_name !== "pre_llm_call") {
     return null;
@@ -156,13 +156,14 @@ function isHermesCompaction(payload) {
   return null;
 }
 
-// Identity of the handoff row for dedupe across turns: prefer stable in-process
-// metadata; otherwise hash the row content (upstream rewording changes this hash,
-// which is fine — a different summary is a different compaction).
+// Identity of the handoff row for dedupe across turns: hash the row text for
+// EVERY detected row. The `_compressed_summary` flag is stamped unconditionally
+// at the boundary (content-independent), so a constant identity for flagged
+// rows would dedupe two DIFFERENT compactions in one session against each
+// other and swallow the second boundary within the TTL. (Upstream rewording
+// changes this hash, which is fine — a different summary is a different
+// compaction.)
 function summaryRowIdentity(summaryRow) {
-  if (summaryRow._compressed_summary) {
-    return "metadata";
-  }
   const content = summaryRow.content;
   const text = typeof content === "string"
     ? content
